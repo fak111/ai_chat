@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Local PostgreSQL for development
+  postgres:
+    image: postgres:15-alpine
+    container_name: abao-postgres
+    environment:
+      POSTGRES_DB: abao
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/src/main/resources/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Local Redis for development
+  redis:
+    image: redis:7-alpine
+    container_name: abao-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Spring Boot Backend
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: abao-server
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: jdbc:postgresql://postgres:5432/abao
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_SSL: "false"
+      JWT_SECRET: ${JWT_SECRET:-c0T1VX5sbYS0yuAhQQscO+lB5zYWS8uzrEn6oXmZ4Lc=}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${MAIL_FROM:-noreply@abao.app}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

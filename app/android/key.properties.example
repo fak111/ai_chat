@@ -1,0 +1,11 @@
+# Release keystore configuration
+# Copy this file to key.properties and fill in your keystore information
+# DO NOT commit key.properties to version control
+
+storePassword=your-store-password
+keyPassword=your-key-password
+keyAlias=abao
+storeFile=/path/to/your/release-keystore.jks
+
+# To generate a keystore:
+# keytool -genkey -v -keystore release-keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias abao

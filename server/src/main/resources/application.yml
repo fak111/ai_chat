@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: abao-server
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/abao}
+    username: ${DATABASE_USERNAME:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500,expireAfterWrite=10m
+
+server:
+  port: ${PORT:8080}
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-for-jwt-signing-do-not-use-in-production}
+  access-token-expiration: 7200000  # 2 hours in milliseconds
+  refresh-token-expiration: 604800000  # 7 days in milliseconds
+
+# AI Service Configuration
+ai:
+  deepseek:
+    api-key: ${DEEPSEEK_API_KEY:}
+    base-url: https://api.deepseek.com
+    model: deepseek-chat
+    timeout: 30000  # 30 seconds
+
+# Email Service Configuration
+email:
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    from: ${EMAIL_FROM:noreply@abao.app}
+
+# Rate Limiting
+rate-limit:
+  ai:
+    requests-per-minute: 10

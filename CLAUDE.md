@@ -79,22 +79,81 @@ users (用户) ──1:n──▶ group_members ◀──n:1── groups (群�
 - 延迟目标: < 1 秒
 - AI 响应: < 5 秒
 
-## 开发命令 (待项目初始化后更新)
+## 开发环境启动
+
+### 1. 启动后端 + 数据库（Docker）
+
+```bash
+# 首次启动前，复制并配置环境变量
+cp .env.example .env
+# 编辑 .env，至少填入 DEEPSEEK_API_KEY
+
+# 启动 PostgreSQL + Redis + Spring Boot 后端
+docker-compose -f docker-compose.dev.yml up -d
+
+# 查看后端日志
+docker logs -f abao-server
+
+# 停止服务
+docker-compose -f docker-compose.dev.yml down
+```
+
+### 2. 启动前端（Flutter）
+
+```bash
+cd app
+
+# 安装依赖
+flutter pub get
+
+# 运行 Web 版本（指定端口）
+flutter run -d chrome --web-port=9191
+
+# 或运行其他平台
+flutter run -d macos
+flutter run -d ios
+flutter run -d android
+```
+
+### 3. 服务端口
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| Spring Boot 后端 | 8080 | API + WebSocket |
+| PostgreSQL | 5432 | 数据库 |
+| Redis | 6379 | 缓存 |
+| Flutter Web | 9191 | 前端（可自定义） |
+
+### 4. 必需的环境变量（.env）
+
+```bash
+DEEPSEEK_API_KEY=sk-xxx    # AI 功能必需
+RESEND_API_KEY=re_xxx      # 邮箱验证必需（或手动验证）
+JWT_SECRET=xxx             # 有默认值，可选
+```
+
+### 5. 手动验证邮箱（跳过邮件服务）
+
+```bash
+docker exec abao-postgres psql -U postgres -d abao \
+  -c "UPDATE users SET email_verified = true WHERE email = 'xxx@example.com';"
+```
+
+## 开发命令
 
 ```bash
 # Flutter (移动端)
+cd app
 flutter pub get           # 安装依赖
 flutter run               # 运行应用
 flutter test              # 运行测试
 flutter build apk         # 构建 Android APK
 
-# Spring Boot (后端)
+# Spring Boot (后端) - 直接运行（不用 Docker）
+cd server
 ./gradlew bootRun         # 启动服务
 ./gradlew test            # 运行测试
 ./gradlew build           # 构建
-
-# Docker
-docker-compose up -d      # 启动本地环境
 
 # Docker 构建网络问题 (VPN/代理环境)
 docker build --network=host -t <image-name> .   # 使用主机网络绕过隔离

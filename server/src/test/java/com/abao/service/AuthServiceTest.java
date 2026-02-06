@@ -1,6 +1,7 @@
 package com.abao.service;
 
 import com.abao.dto.auth.*;
+import com.abao.entity.RefreshToken;
 import com.abao.entity.User;
 import com.abao.repository.UserRepository;
 import com.abao.repository.RefreshTokenRepository;
@@ -12,7 +13,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
@@ -142,5 +146,35 @@ class AuthServiceTest {
 
         assertThat(refreshResponse.getAccessToken()).isNotBlank();
         assertThat(refreshResponse.getAccessToken()).isNotEqualTo(loginResponse.getAccessToken());
+    }
+
+    @Test
+    void shouldRejectExpiredRefreshToken() {
+        // Create user and login to get a valid refresh token
+        User user = new User();
+        user.setEmail("expired-refresh@example.com");
+        user.setPasswordHash(passwordEncoder.encode("Password123"));
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail("expired-refresh@example.com");
+        loginRequest.setPassword("Password123");
+        LoginResponse loginResponse = authService.login(loginRequest);
+
+        // Manually expire the refresh token in DB
+        RefreshToken storedToken = refreshTokenRepository
+            .findByToken(loginResponse.getRefreshToken())
+            .orElseThrow();
+        storedToken.setExpiresAt(LocalDateTime.now().minusHours(1));
+        refreshTokenRepository.save(storedToken);
+
+        // Attempt refresh with the now-expired token
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
+        refreshRequest.setRefreshToken(loginResponse.getRefreshToken());
+
+        assertThatThrownBy(() -> authService.refreshToken(refreshRequest))
+            .isInstanceOf(RuntimeException.class)
+            .hasMessageContaining("已过期");
     }
 }

@@ -139,12 +139,14 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void leaveCurrentGroup() {
+  void leaveCurrentGroup({bool notify = true}) {
     if (_currentGroupId != null) {
       _ws.leaveGroup(_currentGroupId!);
       _currentGroupId = null;
       _replyingTo = null;
-      notifyListeners();
+      if (notify) {
+        notifyListeners();
+      }
     }
   }
 

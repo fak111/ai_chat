@@ -3,6 +3,8 @@ package com.abao.websocket;
 import com.abao.entity.User;
 import com.abao.repository.UserRepository;
 import com.abao.security.JwtTokenProvider;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.server.ServerHttpRequest;
@@ -32,8 +34,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
     ) {
         String token = extractToken(request);
 
-        if (token == null || !jwtTokenProvider.validateToken(token)) {
-            log.warn("Invalid WebSocket connection attempt - no valid token");
+        if (token == null) {
+            log.warn("WebSocket rejected - no token provided in request");
             return false;
         }
 
@@ -42,15 +44,22 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             User user = userRepository.findById(userId).orElse(null);
 
             if (user == null) {
-                log.warn("Invalid WebSocket connection - user not found");
+                log.warn("WebSocket rejected - user not found for id={}", userId);
                 return false;
             }
 
             attributes.put("user", user);
             attributes.put("userId", userId);
             return true;
+        } catch (ExpiredJwtException e) {
+            log.warn("WebSocket rejected - token expired at {}, user={}",
+                e.getClaims().getExpiration(), e.getClaims().getSubject());
+            return false;
+        } catch (JwtException e) {
+            log.warn("WebSocket rejected - invalid token: {}", e.getMessage());
+            return false;
         } catch (Exception e) {
-            log.error("Error during WebSocket handshake", e);
+            log.error("WebSocket rejected - unexpected error during handshake", e);
             return false;
         }
     }

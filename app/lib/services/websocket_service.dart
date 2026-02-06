@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'api_service.dart';
+import 'token_manager.dart';
 
 typedef MessageHandler = void Function(Map<String, dynamic> message);
 
@@ -13,7 +13,7 @@ class WebSocketService {
   factory WebSocketService() => _instance;
 
   WebSocketChannel? _channel;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  late final TokenManager _tokenManager;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
   bool _isConnected = false;
@@ -24,14 +24,20 @@ class WebSocketService {
   final Map<String, Set<MessageHandler>> _handlers = {};
   final Set<String> _joinedGroups = {};
 
-  WebSocketService._internal();
+  WebSocketService._internal() {
+    _tokenManager = TokenManager();
+  }
+
+  /// Test constructor — inject dependencies.
+  WebSocketService.forTest({required TokenManager tokenManager})
+      : _tokenManager = tokenManager;
 
   bool get isConnected => _isConnected;
 
   Future<void> connect() async {
     if (_isConnected) return;
 
-    final token = await _storage.read(key: 'access_token');
+    final token = await _tokenManager.getValidAccessToken();
     if (token == null) return;
 
     _shouldReconnect = true;

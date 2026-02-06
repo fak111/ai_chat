@@ -62,6 +62,10 @@ class AuthService {
     });
 
     await _storage.write(key: _accessTokenKey, value: response['accessToken']);
+
+    if (response['refreshToken'] != null) {
+      await _storage.write(key: _refreshTokenKey, value: response['refreshToken']);
+    }
   }
 
   Future<void> logout() async {

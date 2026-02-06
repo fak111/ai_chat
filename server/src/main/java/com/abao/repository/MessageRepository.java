@@ -17,7 +17,7 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     Page<Message> findByGroupIdOrderByCreatedAtDesc(UUID groupId, Pageable pageable);
 
-    @Query("SELECT m FROM Message m WHERE m.group.id = :groupId ORDER BY m.createdAt DESC LIMIT :limit")
+    @Query("SELECT m FROM Message m LEFT JOIN FETCH m.sender WHERE m.group.id = :groupId ORDER BY m.createdAt DESC LIMIT :limit")
     List<Message> findRecentByGroupId(@Param("groupId") UUID groupId, @Param("limit") int limit);
 
     @Query("SELECT m FROM Message m WHERE m.group.id = :groupId ORDER BY m.createdAt DESC LIMIT 1")

@@ -36,7 +36,7 @@ public class MessageService {
 
         // Check if user is a member
         boolean isMember = group.getMembers().stream()
-            .anyMatch(m -> m.getUser().getId().equals(sender.getId()));
+            .anyMatch(m -> m.getUser() != null && m.getUser().getId().equals(sender.getId()));
 
         if (!isMember) {
             throw new IllegalArgumentException("User is not a member of this group");

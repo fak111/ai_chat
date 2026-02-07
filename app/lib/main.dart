@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
@@ -7,8 +8,12 @@ import 'screens/auth/login_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Captured before runApp() so Flutter's router can't strip URL parameters.
+late final Uri initialUri;
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  initialUri = Uri.base;
   runApp(const AbaoApp());
 }
 
@@ -41,6 +46,45 @@ class _AbaoAppState extends State<AbaoApp> {
             fontFamily: 'System',
           ),
           home: const SplashScreen(),
+          builder: (context, child) {
+            if (!kDebugMode) return child!;
+            return Stack(
+              children: [
+                child!,
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: SafeArea(
+                    child: Consumer<AuthProvider>(
+                      builder: (_, auth, __) {
+                        if (auth.user == null) return const SizedBox.shrink();
+                        return IgnorePointer(
+                          child: Container(
+                            color: Colors.black54,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              'DEV: ${auth.user!.email}',
+                              style: const TextStyle(
+                                color: Colors.greenAccent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                decoration: TextDecoration.none,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

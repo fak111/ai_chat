@@ -1,6 +1,5 @@
 package com.abao.service;
 
-import com.abao.dto.message.MessageDto;
 import com.abao.entity.Message;
 import com.abao.entity.MessageType;
 import com.abao.repository.MessageRepository;
@@ -14,8 +13,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -42,19 +41,13 @@ public class AIService {
     @Value("${ai.deepseek.temperature:0.7}")
     private double temperature;
 
+    @Value("${ai.context.window-minutes:30}")
+    private int contextWindowMinutes;
+
+    @Value("${ai.context.max-messages:50}")
+    private int contextMaxMessages;
+
     private static final Pattern AI_MENTION_PATTERN = Pattern.compile("@[Aa][Ii]\\b");
-    private static final int CONTEXT_MESSAGE_LIMIT = 10;
-
-    private static final String SYSTEM_PROMPT = """
-        你是 A宝，一个友好、有帮助的 AI 助手，在群聊中与用户互动。
-
-        规则：
-        1. 保持回复简洁友好，适合群聊场景
-        2. 如果用户用中文提问，用中文回复；英文提问用英文回复
-        3. 不要在回复中提及你是 AI 或机器人，除非被直接问到
-        4. 如果不确定答案，诚实地说不知道
-        5. 避免过长的回复，保持对话自然流畅
-        """;
 
     /**
      * Check if a message contains @AI mention
@@ -94,21 +87,34 @@ public class AIService {
     }
 
     /**
-     * Build conversation context for AI
+     * Build conversation context for AI with time-windowed context
      */
     public List<Map<String, String>> buildContext(UUID groupId, Message triggerMessage) {
         List<Map<String, String>> messages = new ArrayList<>();
 
-        // Add system prompt
-        messages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
+        // Get recent messages within time window (already in ASC order)
+        LocalDateTime since = LocalDateTime.now().minusMinutes(contextWindowMinutes);
+        List<Message> recentMessages = messageRepository.findContextWindow(groupId, since, contextMaxMessages);
 
-        // Get recent messages for context
-        List<Message> recentMessages = messageRepository.findRecentByGroupId(groupId, CONTEXT_MESSAGE_LIMIT);
+        // Extract active member names (deduplicated)
+        Set<String> activeMembers = new LinkedHashSet<>();
+        for (Message msg : recentMessages) {
+            if (msg.getMessageType() == MessageType.USER && msg.getSender() != null) {
+                String nickname = msg.getSender().getNickname();
+                if (nickname != null && !nickname.isEmpty()) {
+                    // Sanitize: truncate and strip newlines to prevent prompt injection
+                    String safeName = nickname.replaceAll("[\\r\\n]", "");
+                    if (safeName.length() > 20) safeName = safeName.substring(0, 20);
+                    activeMembers.add(safeName);
+                }
+            }
+        }
 
-        // Reverse to get chronological order
-        Collections.reverse(recentMessages);
+        // Build enriched system prompt with group context
+        String systemPrompt = buildSystemPrompt(activeMembers);
+        messages.add(Map.of("role", "system", "content", systemPrompt));
 
-        // Build conversation history
+        // Build conversation history (already chronological from query)
         for (Message msg : recentMessages) {
             String role;
             String content = msg.getContent();
@@ -117,9 +123,13 @@ public class AIService {
                 case AI -> role = "assistant";
                 case USER -> {
                     role = "user";
-                    // Include sender name for context
-                    String senderName = msg.getSender() != null ? msg.getSender().getNickname() : "Unknown";
-                    content = senderName + ": " + extractUserMessage(content);
+                    String senderName = msg.getSender() != null
+                        ? sanitizeName(msg.getSender().getNickname())
+                        : "user";
+                    String displayName = msg.getSender() != null
+                        ? msg.getSender().getNickname()
+                        : "Unknown";
+                    content = displayName + ": " + extractUserMessage(content);
                 }
                 default -> {
                     continue; // Skip system messages
@@ -130,6 +140,51 @@ public class AIService {
         }
 
         return messages;
+    }
+
+    /**
+     * Build enriched system prompt with group context and persona rules
+     */
+    private String buildSystemPrompt(Set<String> activeMembers) {
+        String memberList = activeMembers.isEmpty() ? "暂无" : String.join("、", activeMembers);
+
+        return """
+            你是"A宝"，一个群聊 AI 助手。
+
+            ## 群聊信息
+            - 当前群内活跃成员: %s
+
+            ## 你的人设
+            - 名字叫 A宝
+            - 风格：友好、简洁、有趣
+            - 用口语化中文回复，不要过度使用 emoji
+            - 回复长度控制在 1-3 句话，除非用户要求详细解答
+
+            ## 规则
+            - 只回复 @AI 的消息，但要参考上下文理解语境
+            - 如果用户问"群里有谁"，根据最近消息中的成员列表回答
+            - 不要重复之前已经说过的内容
+            - 如果不确定答案，诚实地说不知道
+
+            ## 输出格式规则（强制）
+            - 直接回复内容，不要以任何人的名字开头
+            - 不要模拟其他用户说话
+            - 不要输出 "用户名: 内容" 这种格式
+            - 你的回复就是你自己说的话，不需要角色标注
+            """.formatted(memberList);
+    }
+
+    /**
+     * Sanitize nickname for OpenAI name field constraint [a-zA-Z0-9_-]
+     */
+    public String sanitizeName(String name) {
+        if (name == null || name.isEmpty()) {
+            return "user";
+        }
+        String sanitized = name.replaceAll("[^a-zA-Z0-9_-]", "_");
+        // Remove consecutive underscores and trim leading/trailing underscores
+        sanitized = sanitized.replaceAll("_+", "_").replaceAll("^_|_$", "");
+        return sanitized.isEmpty() ? "user" : sanitized;
     }
 
     /**

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -7,8 +9,8 @@ import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 
 class ChatProvider extends ChangeNotifier {
-  final ApiService _api = ApiService();
-  final WebSocketService _ws = WebSocketService();
+  final ApiService _api;
+  final WebSocketService _ws;
 
   List<Group> _groups = [];
   final Map<String, List<Message>> _messages = {};
@@ -16,6 +18,7 @@ class ChatProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Message? _replyingTo;
+  Timer? _pollingTimer;
 
   List<Group> get groups => _groups;
   List<Message> get currentMessages =>
@@ -25,7 +28,16 @@ class ChatProvider extends ChangeNotifier {
   String? get error => _error;
   Message? get replyingTo => _replyingTo;
 
-  ChatProvider() {
+  ChatProvider()
+      : _api = ApiService(),
+        _ws = WebSocketService() {
+    _setupWebSocketHandlers();
+  }
+
+  /// Test constructor - inject dependencies for mocking.
+  ChatProvider.forTest({required ApiService api, required WebSocketService ws})
+      : _api = api,
+        _ws = ws {
     _setupWebSocketHandlers();
   }
 
@@ -40,6 +52,10 @@ class ChatProvider extends ChangeNotifier {
 
     final groupId = message.groupId;
     _messages.putIfAbsent(groupId, () => []);
+
+    // Dedup: skip if message with same ID already exists
+    if (_messages[groupId]!.any((m) => m.id == message.id)) return;
+
     _messages[groupId]!.insert(0, message);
 
     // Update group's last message
@@ -67,7 +83,8 @@ class ChatProvider extends ChangeNotifier {
     try {
       final response = await _api.get('/api/groups');
       // API returns array directly
-      final List<dynamic> groupsData = response is List ? response : (response['groups'] ?? []);
+      final List<dynamic> groupsData =
+          response is List ? response : (response['groups'] ?? []);
       _groups = groupsData.map((g) => Group.fromJson(g)).toList();
     } on DioException catch (e) {
       _error = e.response?.data?['message'] ?? 'Failed to load groups';
@@ -109,7 +126,8 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _api.post('/api/groups/join', {'inviteCode': inviteCode});
+      final response =
+          await _api.post('/api/groups/join', {'inviteCode': inviteCode});
       final group = Group.fromJson(response);
       _groups.insert(0, group);
       notifyListeners();
@@ -136,6 +154,7 @@ class ChatProvider extends ChangeNotifier {
       await loadMessages(groupId);
     }
 
+    _startPolling();
     notifyListeners();
   }
 
@@ -144,6 +163,7 @@ class ChatProvider extends ChangeNotifier {
       _ws.leaveGroup(_currentGroupId!);
       _currentGroupId = null;
       _replyingTo = null;
+      _stopPolling();
       if (notify) {
         notifyListeners();
       }
@@ -155,9 +175,10 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final page = loadMore ? (_messages[groupId]?.length ?? 0) ~/ 50 : 0;
-      final response = await _api.get('/api/messages/group/$groupId/recent?limit=50');
-      final List<dynamic> messagesData = response is List ? response : (response['content'] ?? []);
+      final response =
+          await _api.get('/api/messages/group/$groupId/recent?limit=50');
+      final List<dynamic> messagesData =
+          response is List ? response : (response['content'] ?? []);
       final messages = messagesData.map((m) => Message.fromJson(m)).toList();
 
       if (loadMore) {
@@ -173,17 +194,83 @@ class ChatProvider extends ChangeNotifier {
     }
   }
 
-  void sendMessage(String content) {
-    if (_currentGroupId == null || content.trim().isEmpty) return;
+  /// Send a message via HTTP POST (reliable, with error feedback).
+  /// Returns true on success, false on failure.
+  Future<bool> sendMessage(String content) async {
+    if (_currentGroupId == null || content.trim().isEmpty) return false;
 
-    _ws.sendMessage(
-      _currentGroupId!,
-      content.trim(),
-      replyToId: _replyingTo?.id,
-    );
+    try {
+      final data = <String, dynamic>{
+        'content': content.trim(),
+        if (_replyingTo != null) 'replyToId': _replyingTo!.id,
+      };
 
-    _replyingTo = null;
-    notifyListeners();
+      final response =
+          await _api.post('/api/messages/group/$_currentGroupId', data);
+      final message = Message.fromJson(response);
+
+      // Add to local list immediately (dedup protects against WebSocket duplicate)
+      _messages.putIfAbsent(_currentGroupId!, () => []);
+      if (!_messages[_currentGroupId!]!.any((m) => m.id == message.id)) {
+        _messages[_currentGroupId!]!.insert(0, message);
+      }
+
+      _replyingTo = null;
+      notifyListeners();
+      return true;
+    } on DioException catch (e) {
+      _error = e.response?.data?['error'] ??
+          e.response?.data?['message'] ??
+          'Failed to send message';
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = 'Failed to send message';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Poll for new messages via HTTP. Called by timer when WebSocket is down,
+  /// or can be called manually.
+  Future<void> pollNewMessages() async {
+    if (_currentGroupId == null) return;
+
+    try {
+      final response =
+          await _api.get('/api/messages/group/$_currentGroupId/recent?limit=20');
+      final List<dynamic> messagesData = response is List ? response : [];
+      final messages = messagesData.map((m) => Message.fromJson(m)).toList();
+
+      bool hasNew = false;
+      _messages.putIfAbsent(_currentGroupId!, () => []);
+      for (final message in messages) {
+        if (!_messages[_currentGroupId!]!.any((m) => m.id == message.id)) {
+          _messages[_currentGroupId!]!.insert(0, message);
+          hasNew = true;
+        }
+      }
+
+      if (hasNew) notifyListeners();
+    } catch (_) {
+      // Silent failure for polling - don't set user-visible error
+    }
+  }
+
+  void _startPolling() {
+    _stopPolling();
+    // Always poll as a safety net. Dedup logic prevents duplicate messages.
+    // WebSocket provides real-time delivery; polling catches anything missed.
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_currentGroupId != null) {
+        pollNewMessages();
+      }
+    });
+  }
+
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
   }
 
   void setReplyingTo(Message? message) {
@@ -202,6 +289,7 @@ class ChatProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stopPolling();
     _ws.disconnect();
     super.dispose();
   }

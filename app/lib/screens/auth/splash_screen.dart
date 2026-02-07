@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../main.dart' show initialUri;
 import '../../providers/auth_provider.dart';
+import '../../utils/auto_login_utils.dart';
 import 'login_screen.dart';
 import '../chat/chat_list_screen.dart';
 
@@ -32,11 +35,40 @@ class _SplashScreenState extends State<SplashScreen> {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ChatListScreen()),
       );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      return;
     }
+
+    // Debug-only: auto-login via URL parameter ?auto_login=email:password
+    if (kDebugMode && kIsWeb) {
+      try {
+        final autoLoginValue = extractAutoLoginFromUri(initialUri);
+        debugPrint('Auto-login: initialUri=$initialUri, value=$autoLoginValue');
+        final credentials = parseAutoLoginParam(autoLoginValue);
+        if (credentials != null) {
+          debugPrint('Auto-login: attempting for ${credentials.email}');
+          final success = await authProvider.login(
+            credentials.email,
+            credentials.password,
+          );
+          if (!mounted) return;
+          if (success) {
+            debugPrint('Auto-login: success for ${credentials.email}');
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const ChatListScreen()),
+            );
+            return;
+          }
+          debugPrint(
+              'Auto-login: failed for ${credentials.email} - ${authProvider.errorMessage}');
+        }
+      } catch (e) {
+        debugPrint('Auto-login error: $e');
+      }
+    }
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+    );
   }
 
   @override

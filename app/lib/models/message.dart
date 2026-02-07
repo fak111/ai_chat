@@ -33,7 +33,9 @@ class Message {
       messageType: _parseMessageType(json['messageType']),
       replyToId: json['replyToId'],
       replyToContent: json['replyToContent'],
-      createdAt: DateTime.parse(json['createdAt']),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : DateTime.now(),
     );
   }
 

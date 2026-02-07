@@ -44,13 +44,23 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final content = _messageController.text.trim();
     if (content.isEmpty) return;
 
-    context.read<ChatProvider>().sendMessage(content);
     _messageController.clear();
     _focusNode.requestFocus();
+
+    final success = await context.read<ChatProvider>().sendMessage(content);
+    if (!success && mounted) {
+      final error = context.read<ChatProvider>().error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error ?? 'Failed to send message'),
+          backgroundColor: Colors.red.shade400,
+        ),
+      );
+    }
   }
 
   void _showGroupSettings() {
@@ -330,19 +340,50 @@ class _ChatScreenState extends State<ChatScreen> {
                   const SizedBox(height: 4),
                   // Reply preview
                   if (message.replyToContent != null) _buildReplyPreview(message),
-                  // Message bubble
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isAI
-                          ? Theme.of(context).colorScheme.secondaryContainer
-                          : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      message.content,
-                      style: const TextStyle(fontSize: 15),
-                    ),
+                  // Message bubble with optional quote button
+                  Stack(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.only(
+                          left: 12, right: isAI ? 28 : 12,
+                          top: 8, bottom: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isAI
+                              ? Theme.of(context).colorScheme.secondaryContainer
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          message.content,
+                          style: const TextStyle(fontSize: 15),
+                        ),
+                      ),
+                      // Quote button for AI messages
+                      if (isAI)
+                        Positioned(
+                          right: 4,
+                          bottom: 4,
+                          child: GestureDetector(
+                            onTap: () {
+                              context.read<ChatProvider>().setReplyingTo(message);
+                              _focusNode.requestFocus();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.format_quote,
+                                size: 16,
+                                color: Theme.of(context).colorScheme.secondary.withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),

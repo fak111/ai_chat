@@ -1,13 +1,18 @@
 #!/bin/bash
-# dual_test.sh - Open two Chrome windows for dual-account chat testing
+# dual_test.sh - Open two isolated Chrome windows for dual-account chat testing
 #
 # Usage:
 #   ./scripts/dual_test.sh          # Launch both windows
 #   ./scripts/dual_test.sh --clean  # Clear cached tokens first
+#   ./scripts/dual_test.sh --kill   # Kill existing test Chrome instances
 #
 # Prerequisites:
 #   - Flutter web app running at localhost:9191 (use `fweb`)
 #   - Both test accounts registered and email-verified
+#
+# Note: Each Chrome instance runs with a separate --user-data-dir to ensure
+#       process isolation. This prevents "reusing existing session" issues
+#       where --no-proxy-server would be ignored.
 
 set -e
 
@@ -25,6 +30,21 @@ if [ ! -f "$CHROME" ]; then
     echo "Error: Chrome not found at $CHROME"
     exit 1
 fi
+
+# Kill any existing test Chrome instances using our profile dirs
+kill_test_chromes() {
+    local killed=0
+    for pid in $(pgrep -f "user-data-dir=$PROFILE_DIR_A" 2>/dev/null || true); do
+        kill "$pid" 2>/dev/null && killed=$((killed + 1))
+    done
+    for pid in $(pgrep -f "user-data-dir=$PROFILE_DIR_B" 2>/dev/null || true); do
+        kill "$pid" 2>/dev/null && killed=$((killed + 1))
+    done
+    if [ $killed -gt 0 ]; then
+        echo "Killed $killed existing test Chrome process(es)."
+        sleep 1
+    fi
+}
 
 open_chrome() {
     local profile_dir=$1
@@ -50,15 +70,25 @@ open_chrome() {
 echo "=== A宝 Dual Account Test ==="
 echo ""
 
+if [ "$1" = "--kill" ]; then
+    kill_test_chromes
+    echo "Done."
+    exit 0
+fi
+
 if [ "$1" = "--clean" ]; then
     echo "Cleaning Chrome profiles..."
+    kill_test_chromes
     rm -rf "$PROFILE_DIR_A" "$PROFILE_DIR_B"
     echo "Done."
     echo ""
 fi
 
+# Always kill existing test instances to ensure fresh isolated processes
+kill_test_chromes
+
 open_chrome "$PROFILE_DIR_A" "$ACCOUNT_A_EMAIL" "$ACCOUNT_A_PASS" "Account A" "--window-position=100,50"
-sleep 1
+sleep 2
 open_chrome "$PROFILE_DIR_B" "$ACCOUNT_B_EMAIL" "$ACCOUNT_B_PASS" "Account B" "--window-position=600,50"
 
 echo ""
@@ -68,4 +98,6 @@ echo ""
 echo "Tips:"
 echo "  - First run auto-logs in; subsequent runs use cached tokens"
 echo "  - Use --clean to force re-login"
-echo "  - Make sure fweb is running"
+echo "  - Use --kill to close test Chrome instances"
+echo "  - Make sure fweb is running (not regular Chrome!)"
+echo "  - If you see 'reusing existing session', close ALL Chrome windows first"

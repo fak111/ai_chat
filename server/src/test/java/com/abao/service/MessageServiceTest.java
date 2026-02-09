@@ -12,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -36,6 +37,9 @@ class MessageServiceTest {
     @Mock
     private WebSocketSessionManager sessionManager;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private MessageService messageService;
 
@@ -54,7 +58,7 @@ class MessageServiceTest {
         testGroup = new Group();
         testGroup.setId(groupId);
         testGroup.setName("Test Group");
-        testGroup.setMembers(new HashSet<>());
+        testGroup.setMembers(new ArrayList<>());
 
         GroupMember member = new GroupMember();
         member.setUser(testUser);
@@ -132,7 +136,7 @@ class MessageServiceTest {
     @Test
     void sendMessage_UserNotMember_ThrowsException() {
         // Given
-        testGroup.setMembers(new HashSet<>()); // Empty members
+        testGroup.setMembers(new ArrayList<>()); // Empty members
         when(groupRepository.findById(groupId)).thenReturn(Optional.of(testGroup));
 
         // When/Then

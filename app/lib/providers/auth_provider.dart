@@ -89,7 +89,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _status = AuthStatus.error;
-      _errorMessage = e.toString();
+      _errorMessage = _cleanErrorMessage(e);
       notifyListeners();
       return false;
     }
@@ -107,7 +107,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _status = AuthStatus.error;
-      _errorMessage = e.toString();
+      _errorMessage = _cleanErrorMessage(e);
       notifyListeners();
       return false;
     }
@@ -118,6 +118,15 @@ class AuthProvider extends ChangeNotifier {
     _user = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();
+  }
+
+  /// 去掉 "Exception: " 前缀
+  static String _cleanErrorMessage(Object e) {
+    final msg = e.toString();
+    if (msg.startsWith('Exception: ')) {
+      return msg.substring('Exception: '.length);
+    }
+    return msg;
   }
 
   @override

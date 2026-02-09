@@ -56,6 +56,10 @@ email:
     api-key: ${RESEND_API_KEY:}
     from: ${EMAIL_FROM:noreply@abao.app}
 
+# App Configuration
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+
 # Rate Limiting
 rate-limit:
   ai:

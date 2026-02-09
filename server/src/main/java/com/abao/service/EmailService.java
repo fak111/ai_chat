@@ -20,19 +20,19 @@ public class EmailService {
     @Value("${email.resend.from:noreply@abao.app}")
     private String fromEmail;
 
-    @Value("${DOMAIN:localhost}")
-    private String domain;
+    @Value("${app.base-url:http://localhost:8080}")
+    private String baseUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
     public void sendVerificationEmail(String toEmail, String verificationToken) {
+        String verificationLink = String.format("%s/api/auth/verify?token=%s", baseUrl, verificationToken);
+
         if (resendApiKey == null || resendApiKey.isEmpty()) {
             log.warn("Resend API key not configured, skipping email send");
-            log.info("Verification link for {}: https://{}/verify?token={}", toEmail, domain, verificationToken);
+            log.info("Verification link for {}: {}", toEmail, verificationLink);
             return;
         }
-
-        String verificationLink = String.format("https://%s/verify?token=%s", domain, verificationToken);
 
         Map<String, Object> emailData = new HashMap<>();
         emailData.put("from", fromEmail);

@@ -72,22 +72,54 @@ class ApiService {
     ));
   }
 
+  /// 从 DioException 中提取后端返回的错误消息，找不到则返回 fallback
+  static String extractErrorMessage(DioException e, [String fallback = '请求失败，请稍后重试']) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      return data['error'] as String? ?? data['message'] as String? ?? fallback;
+    }
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return '网络连接超时，请检查网络';
+    }
+    if (e.type == DioExceptionType.connectionError) {
+      return '无法连接服务器，请检查网络';
+    }
+    return fallback;
+  }
+
   Future<dynamic> get(String path) async {
-    final response = await _dio.get(path);
-    return response.data;
+    try {
+      final response = await _dio.get(path);
+      return response.data;
+    } on DioException catch (e) {
+      throw Exception(extractErrorMessage(e));
+    }
   }
 
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> data) async {
-    final response = await _dio.post(path, data: data);
-    return response.data as Map<String, dynamic>;
+    try {
+      final response = await _dio.post(path, data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(extractErrorMessage(e));
+    }
   }
 
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data) async {
-    final response = await _dio.put(path, data: data);
-    return response.data as Map<String, dynamic>;
+    try {
+      final response = await _dio.put(path, data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(extractErrorMessage(e));
+    }
   }
 
   Future<void> delete(String path) async {
-    await _dio.delete(path);
+    try {
+      await _dio.delete(path);
+    } on DioException catch (e) {
+      throw Exception(extractErrorMessage(e));
+    }
   }
 }

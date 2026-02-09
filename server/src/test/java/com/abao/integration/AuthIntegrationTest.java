@@ -19,7 +19,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -116,6 +118,46 @@ class AuthIntegrationTest {
         mockMvc.perform(get("/api/groups")
                 .header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void verifyEmailViaGetRequest_WithValidToken_ReturnsHtmlSuccessPage() throws Exception {
+        // 注册用户获取 verification token
+        String email = "getverify" + System.currentTimeMillis() + "@example.com";
+        RegisterRequest registerRequest = new RegisterRequest();
+        registerRequest.setEmail(email);
+        registerRequest.setPassword("Password123!");
+        registerRequest.setNickname("GetVerifyUser");
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registerRequest)))
+            .andExpect(status().isOk());
+
+        // 从数据库取出 verification token
+        User user = userRepository.findByEmail(email).orElseThrow();
+        assertThat(user.getEmailVerified()).isFalse();
+        String token = user.getVerificationToken();
+        assertThat(token).isNotBlank();
+
+        // GET /api/auth/verify?token=xxx 应返回 HTML 成功页面
+        mockMvc.perform(get("/api/auth/verify").param("token", token))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("text/html"))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("验证成功")));
+
+        // 确认邮箱已验证
+        User verifiedUser = userRepository.findByEmail(email).orElseThrow();
+        assertThat(verifiedUser.getEmailVerified()).isTrue();
+        assertThat(verifiedUser.getVerificationToken()).isNull();
+    }
+
+    @Test
+    void verifyEmailViaGetRequest_WithInvalidToken_ReturnsHtmlErrorPage() throws Exception {
+        mockMvc.perform(get("/api/auth/verify").param("token", UUID.randomUUID().toString()))
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("text/html"))
+            .andExpect(content().string(org.hamcrest.Matchers.containsString("验证失败")));
     }
 
     @Test

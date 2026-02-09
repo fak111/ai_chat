@@ -29,3 +29,6 @@ email:
   resend:
     api-key: test-api-key
     from: test@abao.app
+
+app:
+  base-url: http://localhost:8080

@@ -1,11 +1,11 @@
 {
-    "name": "abao_app",
-    "short_name": "abao_app",
+    "name": "A宝 - AI群聊",
+    "short_name": "A宝",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFF8F6",
+    "theme_color": "#FFF8F6",
+    "description": "A宝 - 让每个群都有AI朋友",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

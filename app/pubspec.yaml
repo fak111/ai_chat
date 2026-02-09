@@ -40,9 +40,25 @@ dev_dependencies:
   mocktail: ^1.0.3
   build_runner: ^2.4.8
   http_mock_adapter: ^0.6.1
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
 
-  # assets:
-  #   - assets/images/
+  assets:
+    - assets/images/
+
+flutter_launcher_icons:
+  image_path: "assets/images/logo.png"
+  android: true
+  ios: true
+  macos:
+    generate: true
+    image_path: "assets/images/logo.png"
+  web:
+    generate: true
+    image_path: "assets/images/logo.png"
+    background_color: "#FFF8F6"
+    theme_color: "#FFF8F6"
+  adaptive_icon_background: "#FFF8F6"
+  adaptive_icon_foreground: "assets/images/logo.png"

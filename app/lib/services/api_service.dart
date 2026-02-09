@@ -10,8 +10,7 @@ class ApiService {
   late final Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  // TODO: Update with actual server URL
-  static const String baseUrl = 'http://localhost:8080';
+  static const String baseUrl = 'http://118.196.78.215';
 
   static const _authPaths = {'/api/auth/refresh', '/api/auth/login'};
 

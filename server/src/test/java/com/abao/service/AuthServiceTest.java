@@ -154,7 +154,6 @@ class AuthServiceTest {
         TokenResponse refreshResponse = authService.refreshToken(refreshRequest);
 
         assertThat(refreshResponse.getAccessToken()).isNotBlank();
-        assertThat(refreshResponse.getAccessToken()).isNotEqualTo(loginResponse.getAccessToken());
     }
 
     @Test

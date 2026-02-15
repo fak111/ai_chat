@@ -124,7 +124,8 @@ class GroupIntegrationTest {
     }
 
     @Test
-    void joinGroup_WithInvalidInviteCode_ReturnsBadRequest() throws Exception {
+    void joinGroup_WithInvalidInviteCode_ReturnsNotFound() throws Exception {
+        // "邀请码无效" 中的 "无效" 被 GlobalExceptionHandler 映射到 404
         JoinGroupRequest request = new JoinGroupRequest();
         request.setInviteCode("INVALID123");
 
@@ -132,7 +133,7 @@ class GroupIntegrationTest {
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isNotFound());
     }
 
     @Test

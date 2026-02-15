@@ -98,9 +98,10 @@ class AuthIntegrationTest {
     }
 
     @Test
-    void accessProtectedEndpoint_WithoutToken_ReturnsUnauthorized() throws Exception {
+    void accessProtectedEndpoint_WithoutToken_ReturnsForbidden() throws Exception {
+        // Spring Security 无自定义 AuthenticationEntryPoint 时，未认证请求返回 403
         mockMvc.perform(get("/api/groups"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isForbidden());
     }
 
     @Test

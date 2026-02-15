@@ -3,6 +3,8 @@ package com.abao.service;
 import com.abao.dto.auth.*;
 import com.abao.entity.RefreshToken;
 import com.abao.entity.User;
+import com.abao.repository.GroupMemberRepository;
+import com.abao.repository.MessageRepository;
 import com.abao.repository.UserRepository;
 import com.abao.repository.RefreshTokenRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,7 +13,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -21,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@Transactional
 class AuthServiceTest {
 
     @Autowired
@@ -34,10 +34,19 @@ class AuthServiceTest {
     private RefreshTokenRepository refreshTokenRepository;
 
     @Autowired
+    private GroupMemberRepository groupMemberRepository;
+
+    @Autowired
+    private MessageRepository messageRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
+        // FK 顺序：先删子表，再删父表
+        messageRepository.deleteAll();
+        groupMemberRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         userRepository.deleteAll();
     }

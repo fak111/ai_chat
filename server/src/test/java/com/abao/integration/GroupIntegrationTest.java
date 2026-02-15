@@ -91,7 +91,7 @@ class GroupIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Test Group"))
             .andExpect(jsonPath("$.inviteCode").exists())
-            .andExpect(jsonPath("$.memberCount").value(1));
+            .andExpect(jsonPath("$.memberCount").value(2)); // 创建者 + AI
     }
 
     @Test
@@ -120,7 +120,7 @@ class GroupIntegrationTest {
                 .content(objectMapper.writeValueAsString(joinRequest)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Join Test Group"))
-            .andExpect(jsonPath("$.memberCount").value(2));
+            .andExpect(jsonPath("$.memberCount").value(3)); // 创建者 + AI + 加入者
     }
 
     @Test
@@ -151,6 +151,6 @@ class GroupIntegrationTest {
         mockMvc.perform(get("/api/groups")
                 .header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.groups").isArray());
+            .andExpect(jsonPath("$").isArray()); // API 直接返回 List<GroupDto>
     }
 }

@@ -1,47 +1,80 @@
-name: Deploy
+name: Release & Deploy
 
 on:
   push:
-    branches: [main]
     tags:
       - 'v*'
 
 jobs:
-  deploy-backend:
-    name: Deploy Backend to Railway
+  # ============================================
+  # Step 1: 测试先行（测试不过，后面全不跑）
+  # ============================================
+  test:
+    name: Test Gate
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: abao_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
-      - name: Deploy to Railway
+      # 后端测试
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+      - run: chmod +x server/gradlew
+      - name: Backend tests
         working-directory: server
-        run: railway up --service abao-server
+        run: ./gradlew test
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          SPRING_PROFILES_ACTIVE: test
 
+      # 前端测试
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: 'stable'
+          cache: true
+      - name: Frontend analyze
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter analyze
+      - name: Frontend tests
+        working-directory: app
+        run: flutter test
+
+  # ============================================
+  # Step 2: 构建签名 Android APK + GitHub Release
+  # ============================================
   build-android:
     name: Build Android APK
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
+    needs: test
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.38.9'
           channel: 'stable'
           cache: true
 
@@ -49,20 +82,114 @@ jobs:
         working-directory: app
         run: flutter pub get
 
+      # 从 Secrets 还原 keystore
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > app/android/app/release-keystore.jks
+
+      - name: Create key.properties
+        run: |
+          cat > app/android/key.properties << EOF
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=release-keystore.jks
+          EOF
+
+      # 版本号格式: Major.Minor.MMDD.Build
+      # 示例: v1.1.0210.2 → versionName=1.1.0210.2, versionCode=101021002
+      # versionCode = Major*100000000 + Minor*1000000 + MMDD*100 + Build
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          IFS='.' read -r major minor date build <<< "$VERSION"
+          CODE=$((major * 100000000 + minor * 1000000 + date * 100 + ${build:-1}))
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+
       - name: Build APK
         working-directory: app
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release \
+            --build-name=${{ steps.version.outputs.version }} \
+            --build-number=${{ steps.version.outputs.code }}
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-apk
           path: app/build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: app/build/app/outputs/flutter-apk/app-release.apk
+          generate_release_notes: true
+          name: "A宝 ${{ steps.version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ============================================
+  # Step 3: 部署后端到服务器
+  # ============================================
+  deploy-backend:
+    name: Deploy Backend
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Build JAR
+        working-directory: server
+        run: |
+          chmod +x gradlew
+          ./gradlew build -x test
+
+      - name: Build Docker image
+        run: docker build -t abao-server:latest server/
+
+      - name: Save Docker image
+        run: docker save abao-server:latest | gzip > /tmp/abao-server.tar.gz
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Upload image
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            /tmp/abao-server.tar.gz \
+            root@${{ secrets.SERVER_HOST }}:/opt/abao/
+
+      - name: Upload compose config
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            docker-compose.prod.yml \
+            root@${{ secrets.SERVER_HOST }}:/opt/abao/
+
+      - name: Upload .env
+        run: |
+          echo "${{ secrets.DEPLOY_ENV_FILE }}" > /tmp/.env
+          scp -i ~/.ssh/deploy_key \
+            /tmp/.env \
+            root@${{ secrets.SERVER_HOST }}:/opt/abao/.env
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key root@${{ secrets.SERVER_HOST }} << 'DEPLOY'
+            cd /opt/abao
+            gunzip -c abao-server.tar.gz | docker load
+            rm abao-server.tar.gz
+            docker compose -f docker-compose.prod.yml up -d
+            sleep 25
+            curl -sf http://localhost:8080/api/health && echo '✅ 部署成功' || echo '❌ 部署失败'
+          DEPLOY

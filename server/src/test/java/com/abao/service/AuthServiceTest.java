@@ -38,8 +38,8 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        userRepository.deleteAll();
         refreshTokenRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test

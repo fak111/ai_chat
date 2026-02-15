@@ -1,9 +1,11 @@
 package com.abao.integration;
 
+import com.abao.dto.auth.LoginRequest;
 import com.abao.dto.auth.RegisterRequest;
 import com.abao.dto.group.CreateGroupRequest;
 import com.abao.dto.group.JoinGroupRequest;
-import com.fasterxml.jackson.databind.JsonNode;
+import com.abao.entity.User;
+import com.abao.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,26 +31,47 @@ class GroupIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private String accessToken;
     private String accessToken2;
 
     @BeforeEach
     void setUp() throws Exception {
-        // Create first user
-        accessToken = registerAndGetToken("grouptest1_" + System.currentTimeMillis() + "@example.com");
-        // Create second user
-        accessToken2 = registerAndGetToken("grouptest2_" + System.currentTimeMillis() + "@example.com");
+        accessToken = registerVerifyAndGetToken("grouptest1_" + System.currentTimeMillis() + "@example.com");
+        accessToken2 = registerVerifyAndGetToken("grouptest2_" + System.currentTimeMillis() + "@example.com");
     }
 
-    private String registerAndGetToken(String email) throws Exception {
+    /**
+     * 注册 → 手动验证邮箱 → 登录获取 token
+     */
+    private String registerVerifyAndGetToken(String email) throws Exception {
+        // 1. Register
         RegisterRequest request = new RegisterRequest();
         request.setEmail(email);
         request.setPassword("Password123!");
         request.setNickname("TestUser");
 
-        MvcResult result = mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk());
+
+        // 2. 手动验证邮箱
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(true);
+        user.setVerificationToken(null);
+        userRepository.save(user);
+
+        // 3. Login 获取 token
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail(email);
+        loginRequest.setPassword("Password123!");
+
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginRequest)))
             .andExpect(status().isOk())
             .andReturn();
 

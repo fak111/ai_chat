@@ -45,12 +45,15 @@ class AuthIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    /**
+     * 注册 → 验证邮箱 → 登录，完整流程
+     */
     @Test
     void registerAndLogin_Success() throws Exception {
         String email = "test" + System.currentTimeMillis() + "@example.com";
         String password = "Password123!";
 
-        // Register
+        // 1. Register - 返回验证邮件提示，不返回 token
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setEmail(email);
         registerRequest.setPassword(password);
@@ -60,10 +63,16 @@ class AuthIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registerRequest)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").exists())
-            .andExpect(jsonPath("$.refreshToken").exists());
+            .andExpect(jsonPath("$.message").exists())
+            .andExpect(jsonPath("$.email").value(email));
 
-        // Login
+        // 2. 手动验证邮箱（模拟用户点击验证链接）
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(true);
+        user.setVerificationToken(null);
+        userRepository.save(user);
+
+        // 3. Login - 验证后才能登录
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail(email);
         loginRequest.setPassword(password);
@@ -99,22 +108,38 @@ class AuthIntegrationTest {
         String email = "tokentest" + System.currentTimeMillis() + "@example.com";
         String password = "Password123!";
 
-        // Register and get token
+        // 1. Register
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setEmail(email);
         registerRequest.setPassword(password);
         registerRequest.setNickname("TokenTest");
 
-        MvcResult result = mockMvc.perform(post("/api/auth/register")
+        mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registerRequest)))
+            .andExpect(status().isOk());
+
+        // 2. 手动验证邮箱
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.setEmailVerified(true);
+        user.setVerificationToken(null);
+        userRepository.save(user);
+
+        // 3. Login 获取 token
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setEmail(email);
+        loginRequest.setPassword(password);
+
+        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginRequest)))
             .andExpect(status().isOk())
             .andReturn();
 
-        String responseBody = result.getResponse().getContentAsString();
-        String accessToken = objectMapper.readTree(responseBody).get("accessToken").asText();
+        String accessToken = objectMapper.readTree(loginResult.getResponse().getContentAsString())
+            .get("accessToken").asText();
 
-        // Access protected endpoint
+        // 4. 用 token 访问受保护端点
         mockMvc.perform(get("/api/groups")
                 .header("Authorization", "Bearer " + accessToken))
             .andExpect(status().isOk());
@@ -122,7 +147,6 @@ class AuthIntegrationTest {
 
     @Test
     void verifyEmailViaGetRequest_WithValidToken_ReturnsHtmlSuccessPage() throws Exception {
-        // 注册用户获取 verification token
         String email = "getverify" + System.currentTimeMillis() + "@example.com";
         RegisterRequest registerRequest = new RegisterRequest();
         registerRequest.setEmail(email);
@@ -134,19 +158,16 @@ class AuthIntegrationTest {
                 .content(objectMapper.writeValueAsString(registerRequest)))
             .andExpect(status().isOk());
 
-        // 从数据库取出 verification token
         User user = userRepository.findByEmail(email).orElseThrow();
         assertThat(user.getEmailVerified()).isFalse();
         String token = user.getVerificationToken();
         assertThat(token).isNotBlank();
 
-        // GET /api/auth/verify?token=xxx 应返回 HTML 成功页面
         mockMvc.perform(get("/api/auth/verify").param("token", token))
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith("text/html"))
             .andExpect(content().string(org.hamcrest.Matchers.containsString("验证成功")));
 
-        // 确认邮箱已验证
         User verifiedUser = userRepository.findByEmail(email).orElseThrow();
         assertThat(verifiedUser.getEmailVerified()).isTrue();
         assertThat(verifiedUser.getVerificationToken()).isNull();
@@ -165,14 +186,12 @@ class AuthIntegrationTest {
         String email = "expired-refresh" + System.currentTimeMillis() + "@example.com";
         String password = "Password123!";
 
-        // Create a verified user directly in DB
         User user = new User();
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setEmailVerified(true);
         userRepository.save(user);
 
-        // Login to get tokens
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail(email);
         loginRequest.setPassword(password);
@@ -186,13 +205,11 @@ class AuthIntegrationTest {
         String responseBody = loginResult.getResponse().getContentAsString();
         String refreshToken = objectMapper.readTree(responseBody).get("refreshToken").asText();
 
-        // Expire the refresh token in DB
         RefreshToken storedToken = refreshTokenRepository.findByToken(refreshToken)
             .orElseThrow();
         storedToken.setExpiresAt(LocalDateTime.now().minusHours(1));
         refreshTokenRepository.save(storedToken);
 
-        // Attempt refresh with expired token → should return 401
         mockMvc.perform(post("/api/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("refreshToken", refreshToken))))

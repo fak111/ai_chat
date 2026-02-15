@@ -155,12 +155,6 @@ jobs:
           chmod +x gradlew
           ./gradlew build -x test
 
-      - name: Build Docker image
-        run: docker build -t abao-server:latest server/
-
-      - name: Save Docker image
-        run: docker save abao-server:latest | gzip > /tmp/abao-server.tar.gz
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -168,14 +162,13 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Upload image
+      # 只上传 JAR (~50MB) + Dockerfile + 配置，不传整个 Docker 镜像 (~300MB)
+      # 避免 GitHub Actions (美国) → 国内服务器跨境传输大文件
+      - name: Upload build artifacts
         run: |
           scp -i ~/.ssh/deploy_key \
-            /tmp/abao-server.tar.gz \
-            root@${{ secrets.SERVER_HOST }}:/opt/abao/
-
-      - name: Upload compose config
-        run: |
+            server/build/libs/*.jar \
+            root@${{ secrets.SERVER_HOST }}:/opt/abao/app.jar
           scp -i ~/.ssh/deploy_key \
             docker-compose.prod.yml \
             root@${{ secrets.SERVER_HOST }}:/opt/abao/
@@ -187,12 +180,24 @@ jobs:
             /tmp/.env \
             root@${{ secrets.SERVER_HOST }}:/opt/abao/.env
 
-      - name: Deploy
+      - name: Deploy (remote build)
         run: |
           ssh -i ~/.ssh/deploy_key root@${{ secrets.SERVER_HOST }} << 'DEPLOY'
             cd /opt/abao
-            gunzip -c abao-server.tar.gz | docker load
-            rm abao-server.tar.gz
+
+            # 用 JAR 直接构建轻量镜像（跳过 Gradle 编译阶段）
+            cat > Dockerfile.ci << 'DFILE'
+          FROM eclipse-temurin:17-jre
+          WORKDIR /app
+          RUN groupadd -r spring && useradd -r -g spring spring
+          USER spring:spring
+          COPY app.jar app.jar
+          EXPOSE 8080
+          ENTRYPOINT ["java", "-jar", "app.jar"]
+          DFILE
+
+            docker build -f Dockerfile.ci -t abao-server:latest .
+            rm -f Dockerfile.ci app.jar
             docker compose -f docker-compose.prod.yml up -d
             sleep 25
             curl -sf http://localhost:8080/api/health && echo '✅ 部署成功' || echo '❌ 部署失败'

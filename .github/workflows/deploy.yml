@@ -143,18 +143,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Build JAR
-        working-directory: server
-        run: |
-          chmod +x gradlew
-          ./gradlew build -x test
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -162,42 +150,31 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      # 只上传 JAR (~50MB) + Dockerfile + 配置，不传整个 Docker 镜像 (~300MB)
-      # 避免 GitHub Actions (美国) → 国内服务器跨境传输大文件
-      - name: Upload build artifacts
-        run: |
-          scp -i ~/.ssh/deploy_key \
-            server/build/libs/*.jar \
-            root@${{ secrets.SERVER_HOST }}:/opt/abao/app.jar
-          scp -i ~/.ssh/deploy_key \
-            docker-compose.prod.yml \
-            root@${{ secrets.SERVER_HOST }}:/opt/abao/
-
-      - name: Upload .env
+      # 零传输策略：服务器自己 git pull + 构建
+      # GitHub Actions (美国) → 国内服务器跨境传输太慢
+      # 服务器从 GitHub clone 代码（几 MB）比 SCP 上传镜像/JAR 快得多
+      - name: Upload configs
         run: |
           echo "${{ secrets.DEPLOY_ENV_FILE }}" > /tmp/.env
-          scp -i ~/.ssh/deploy_key \
-            /tmp/.env \
-            root@${{ secrets.SERVER_HOST }}:/opt/abao/.env
+          scp -i ~/.ssh/deploy_key /tmp/.env root@${{ secrets.SERVER_HOST }}:/opt/abao/.env
+          scp -i ~/.ssh/deploy_key docker-compose.prod.yml root@${{ secrets.SERVER_HOST }}:/opt/abao/
 
-      - name: Deploy (remote build)
+      - name: Deploy (server-side build)
         run: |
           ssh -i ~/.ssh/deploy_key root@${{ secrets.SERVER_HOST }} << 'DEPLOY'
             cd /opt/abao
 
-            # 用 JAR 直接构建轻量镜像（跳过 Gradle 编译阶段）
-            cat > Dockerfile.ci << 'DFILE'
-          FROM eclipse-temurin:17-jre
-          WORKDIR /app
-          RUN groupadd -r spring && useradd -r -g spring spring
-          USER spring:spring
-          COPY app.jar app.jar
-          EXPOSE 8080
-          ENTRYPOINT ["java", "-jar", "app.jar"]
-          DFILE
+            # 克隆/更新代码（只拉最新 commit，浅克隆）
+            if [ -d repo ]; then
+              cd repo && git fetch --depth 1 origin main && git reset --hard origin/main && cd ..
+            else
+              git clone --depth 1 https://github.com/fak111/ai_chat.git repo
+            fi
 
-            docker build -f Dockerfile.ci -t abao-server:latest .
-            rm -f Dockerfile.ci app.jar
+            # 服务器端构建 Docker 镜像
+            docker build -t abao-server:latest repo/server/
+
+            # 启动服务
             docker compose -f docker-compose.prod.yml up -d
             sleep 25
             curl -sf http://localhost:8080/api/health && echo '✅ 部署成功' || echo '❌ 部署失败'

@@ -2,12 +2,14 @@
 .mcp.json
 .playwright-mcp/
 temp/
+doc/develop/
+doc/iter.md
+video/
 
 # 环境变量 (包含敏感信息)
 .env
 .env.local
 .env.*.local
-doc/develop/
 
 # IDE
 .idea/
@@ -25,6 +27,7 @@ server/bin/
 server/out/
 *.class
 *.jar
+!server/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.log
 
@@ -53,3 +56,4 @@ app/ios/.symlinks/
 # Test coverage
 coverage/
 *.lcov
+

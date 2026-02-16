@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../data/changelog.dart';
 import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
+import 'changelog_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -60,10 +62,24 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: const Text('版本信息'),
-            trailing: const Text(
-              'v1.0.0',
-              style: TextStyle(color: Colors.grey),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  changelog.first.version,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const Icon(Icons.chevron_right),
+              ],
             ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ChangelogScreen(),
+                ),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.description_outlined),

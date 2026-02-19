@@ -41,7 +41,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Debug-only: auto-login via URL parameter ?auto_login=email:password
     if (kDebugMode && kIsWeb) {
       try {
-        final autoLoginValue = extractAutoLoginFromUri(initialUri);
+        final autoLoginValue = extractAutoLoginFromUri(initialUri) ?? getAutoLoginFromDartDefine();
         debugPrint('Auto-login: initialUri=$initialUri, value=$autoLoginValue');
         final credentials = parseAutoLoginParam(autoLoginValue);
         if (credentials != null) {

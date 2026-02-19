@@ -77,4 +77,18 @@ void main() {
       expect(extractAutoLoginFromUri(uri), isNull);
     });
   });
+
+  group('getAutoLoginFromDartDefine', () {
+    test('returns null when AUTO_LOGIN not defined', () {
+      expect(getAutoLoginFromDartDefine(), isNull);
+    });
+
+    test('dart-define value parseable by parseAutoLoginParam', () {
+      const simulated = 'a@t.com:TestPass123';
+      final result = parseAutoLoginParam(simulated);
+      expect(result, isNotNull);
+      expect(result!.email, 'a@t.com');
+      expect(result.password, 'TestPass123');
+    });
+  });
 }

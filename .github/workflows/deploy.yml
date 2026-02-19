@@ -15,35 +15,24 @@ jobs:
   test:
     name: Test Gate
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: abao_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
-      # 后端测试
-      - uses: actions/setup-java@v4
+      # 后端测试 (Node.js)
+      - uses: actions/setup-node@v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-      - run: chmod +x server/gradlew
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: node-server/package-lock.json
+      - name: Install backend dependencies
+        working-directory: node-server
+        run: npm ci
+      - name: TypeScript check
+        working-directory: node-server
+        run: npx tsc --noEmit
       - name: Backend tests
-        working-directory: server
-        run: ./gradlew test
-        env:
-          SPRING_PROFILES_ACTIVE: test
+        working-directory: node-server
+        run: npx vitest run
 
       # 前端测试
       - uses: subosito/flutter-action@v2
@@ -172,7 +161,7 @@ jobs:
             fi
 
             # 服务器端构建 Docker 镜像
-            docker build -t abao-server:latest repo/server/
+            docker build -t abao-server:latest repo/node-server/
 
             # 启动服务
             docker compose -f docker-compose.prod.yml up -d

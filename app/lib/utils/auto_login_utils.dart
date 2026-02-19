@@ -26,3 +26,10 @@ String? extractAutoLoginFromUri(Uri uri) {
   final fragmentQuery = Uri.splitQueryString(fragment.substring(qIndex + 1));
   return fragmentQuery['auto_login'];
 }
+
+/// Read auto_login credentials from compile-time --dart-define.
+/// Usage: flutter run --dart-define=AUTO_LOGIN=email:password
+String? getAutoLoginFromDartDefine() {
+  const value = String.fromEnvironment('AUTO_LOGIN');
+  return value.isEmpty ? null : value;
+}

@@ -57,3 +57,5 @@ app/ios/.symlinks/
 coverage/
 *.lcov
 
+deploy.sh
+doc/infra/

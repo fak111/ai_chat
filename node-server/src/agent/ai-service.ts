@@ -154,7 +154,11 @@ export class AIService {
     this.memoryManager = new MemoryManager();
   }
 
-  async processMessage(message: Message, groupId: string): Promise<void> {
+  async processMessage(
+    message: Message,
+    groupId: string,
+    options?: { proactive?: boolean },
+  ): Promise<void> {
     if (!resolveApiKey()) {
       logger.warn('No AI API key configured, skipping AI processing');
       return;
@@ -182,9 +186,16 @@ export class AIService {
       }
 
       // 4. Build user prompt from context
-      const userPrompt = contextMessages
+      let userPrompt = contextMessages
         .map((m) => (m.role === 'user' ? m.content : `[AI]: ${m.content}`))
         .join('\n');
+
+      // 主动插话模式：注入额外提示
+      if (options?.proactive) {
+        userPrompt += '\n\n[系统提示: 这不是被@的回复，而是你主动参与对话。' +
+          '语气更随意自然，像群友插话。简短一点，1-2句话就好。' +
+          '如果仔细想想其实没什么好说的，直接回复空字符串即可。]';
+      }
 
       // 5. Broadcast stream start
       sessionManager.broadcastToGroup(groupId, {
@@ -248,7 +259,18 @@ export class AIService {
         logger.info({ groupId }, 'Tools refreshed after skill creation');
       }
 
+      // 主动模式下，空回复表示 AI 选择不说话，直接返回
       if (!fullResponse.trim()) {
+        if (options?.proactive) {
+          logger.info({ groupId }, '层3: AI主动选择沉默');
+          sessionManager.broadcastToGroup(groupId, {
+            type: 'AI_STREAM_END',
+            groupId,
+            streamId,
+            message: null as any,
+          });
+          return;
+        }
         fullResponse = FALLBACK_MESSAGE;
       }
 

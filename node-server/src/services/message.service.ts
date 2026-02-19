@@ -2,6 +2,8 @@ import { query } from '../db/client.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { processAIIfNeeded } from '../agent/ai-processor.js';
+import { checkAndProcessProactive } from '../agent/ai-proactive-processor.js';
+import { recordAISpoke } from '../agent/proactive-trigger.js';
 import type { User, MessageDto, PagedResponse } from '../types/index.js';
 
 // DB row type returned by JOIN queries
@@ -97,8 +99,15 @@ export async function sendMessage(
 
   // Check AI trigger (fire-and-forget, don't block response)
   if (shouldTriggerAI(content, row.reply_message_type)) {
-    processAIIfNeeded(dto, user.id, groupId).catch((err) => {
+    processAIIfNeeded(dto, user.id, groupId).then(() => {
+      recordAISpoke(groupId);
+    }).catch((err) => {
       logger.error({ err, groupId, messageId: dto.id }, 'AI processing failed');
+    });
+  } else {
+    // 主动触发检查（非阻塞，失败不影响消息发送）
+    checkAndProcessProactive(dto, user.id, groupId).catch((err) => {
+      logger.debug({ err, groupId }, 'Proactive check failed (non-critical)');
     });
   }
 

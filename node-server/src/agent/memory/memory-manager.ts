@@ -25,7 +25,10 @@ export class MemoryManager {
   async savePermanentMemory(groupId: string, content: string): Promise<void> {
     const dir = path.join(this.baseDir, 'memories', groupId);
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, 'MEMORY.md'), content, 'utf-8');
+    const filePath = path.join(dir, 'MEMORY.md');
+    const timestamp = new Date().toISOString().split('T')[0];
+    const entry = `\n- [${timestamp}] ${content}\n`;
+    await fs.appendFile(filePath, entry, 'utf-8');
   }
 
   async getPermanentMemories(groupId: string): Promise<string> {

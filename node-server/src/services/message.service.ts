@@ -1,6 +1,7 @@
 import { query } from '../db/client.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { processAIIfNeeded } from '../agent/ai-processor.js';
 import type { User, MessageDto, PagedResponse } from '../types/index.js';
 
 // DB row type returned by JOIN queries
@@ -94,9 +95,11 @@ export async function sendMessage(
   const row = result.rows[0];
   const dto = buildMessageDto(row);
 
-  // Check AI trigger
+  // Check AI trigger (fire-and-forget, don't block response)
   if (shouldTriggerAI(content, row.reply_message_type)) {
-    logger.info({ groupId, messageId: dto.id }, 'AI trigger detected, placeholder for future integration');
+    processAIIfNeeded(dto, user.id, groupId).catch((err) => {
+      logger.error({ err, groupId, messageId: dto.id }, 'AI processing failed');
+    });
   }
 
   return dto;

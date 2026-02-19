@@ -27,6 +27,8 @@ async function loadSoul(): Promise<string> {
 export async function buildSystemPrompt(
   groupId: string,
   permanentMemories: string,
+  groupContext?: string,
+  profileSummary?: string,
 ): Promise<string> {
   const soul = await loadSoul();
 
@@ -37,6 +39,16 @@ export async function buildSystemPrompt(
       ? permanentMemories.slice(0, MAX_MEMORY_CHARS) + '\n...(已截断)'
       : permanentMemories;
     parts.push(`\n## 群组记忆\n\n${truncated}`);
+  }
+
+  // P0+P4: 群成员列表和活跃度
+  if (groupContext?.trim()) {
+    parts.push(`\n## 群组信息\n\n${groupContext}`);
+  }
+
+  // P2: 用户画像
+  if (profileSummary?.trim()) {
+    parts.push(`\n## ${profileSummary}\n\n根据画像调整说话方式：对技术人员可以用术语，对非技术人员用大白话。记住每个人的特点，让对话更有温度。`);
   }
 
   // 内部标记当前群组（不暴露给用户）

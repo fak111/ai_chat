@@ -5,7 +5,8 @@ import { query } from '../db/client.js';
 // Register all built-in API providers (openai-completions, anthropic-messages, etc.)
 registerBuiltInApiProviders();
 import { logger } from '../utils/logger.js';
-import { buildContextWindow } from './context-builder.js';
+import { buildContextWindow, buildGroupContext } from './context-builder.js';
+import { updateGroupProfiles, getProfileSummary } from './user-profiler.js';
 import { buildSystemPrompt } from './soul.js';
 import { MemoryManager } from './memory/memory-manager.js';
 import { sessionManager } from '../websocket/ws-session-manager.js';
@@ -108,7 +109,9 @@ async function getOrCreateAgent(groupId: string): Promise<Agent> {
 
   const memoryManager = new MemoryManager();
   const permanentMemories = await memoryManager.getPermanentMemories(groupId);
-  const systemPrompt = await buildSystemPrompt(groupId, permanentMemories);
+  const groupContext = await buildGroupContext(groupId);
+  const profileSummary = await getProfileSummary(groupId);
+  const systemPrompt = await buildSystemPrompt(groupId, permanentMemories, groupContext, profileSummary);
 
   agent = new Agent({
     initialState: {
@@ -174,9 +177,14 @@ export class AIService {
       // 2. Build context from recent messages
       const contextMessages = await buildContextWindow(groupId, message.id);
 
-      // 3. Refresh system prompt (may have new memories + skills)
+      // 2.5 Update user profiles (async, non-blocking for first few calls)
+      updateGroupProfiles(groupId).catch(() => {});
+
+      // 3. Refresh system prompt (may have new memories + skills + profiles)
       const permanentMemories = await this.memoryManager.getPermanentMemories(groupId);
-      const systemPrompt = await buildSystemPrompt(groupId, permanentMemories);
+      const groupContext = await buildGroupContext(groupId);
+      const profileSummary = await getProfileSummary(groupId);
+      const systemPrompt = await buildSystemPrompt(groupId, permanentMemories, groupContext, profileSummary);
       const skillPrompt = skillLoader ? skillLoader.getPromptFragment() : '';
       agent.setSystemPrompt(systemPrompt + skillPrompt);
 

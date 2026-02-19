@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/message.dart';
 import '../../providers/chat_provider.dart';
+import '../../utils/clipboard_utils.dart';
 
 class ChatScreen extends StatefulWidget {
   final String groupId;
@@ -118,12 +118,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         IconButton(
                           icon: const Icon(Icons.copy),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: inviteCode));
+                          onPressed: () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('邀请码已复制')),
-                            );
+                            final result = await copyToClipboard(inviteCode);
+                            if (result.success) {
+                              scaffoldMessenger.showSnackBar(
+                                const SnackBar(content: Text('邀请码已复制')),
+                              );
+                            } else {
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text(result.errorMessage ?? '复制失败'),
+                                  backgroundColor: Colors.red.shade400,
+                                ),
+                              );
+                            }
                           },
                         ),
                       ],
@@ -438,9 +448,22 @@ class _ChatScreenState extends State<ChatScreen> {
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('复制'),
-              onTap: () {
+              onTap: () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
                 Navigator.pop(context);
-                // TODO: Copy to clipboard
+                final result = await copyToClipboard(message.content);
+                if (result.success) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('消息已复制')),
+                  );
+                } else {
+                  scaffoldMessenger.showSnackBar(
+                    SnackBar(
+                      content: Text(result.errorMessage ?? '复制失败'),
+                      backgroundColor: Colors.red.shade400,
+                    ),
+                  );
+                }
               },
             ),
           ],

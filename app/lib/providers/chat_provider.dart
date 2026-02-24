@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/group.dart';
 import '../models/message.dart';
+import '../models/streaming_message.dart';
 import '../services/api_service.dart';
 import '../services/websocket_service.dart';
 
@@ -14,6 +15,7 @@ class ChatProvider extends ChangeNotifier {
 
   List<Group> _groups = [];
   final Map<String, List<Message>> _messages = {};
+  final Map<String, StreamingMessage> _streamingMessages = {};
   String? _currentGroupId;
   bool _isLoading = false;
   String? _error;
@@ -27,6 +29,10 @@ class ChatProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   Message? get replyingTo => _replyingTo;
+
+  /// Active streaming message for the current group (null if none).
+  StreamingMessage? get currentStreamingMessage =>
+      _currentGroupId != null ? _streamingMessages[_currentGroupId] : null;
 
   ChatProvider()
       : _api = ApiService(),
@@ -43,7 +49,18 @@ class ChatProvider extends ChangeNotifier {
 
   void _setupWebSocketHandlers() {
     _ws.addHandler('NEW_MESSAGE', _handleNewMessage);
+    _ws.addHandler('AI_STREAM_START', _handleStreamStart);
+    _ws.addHandler('AI_STREAM_DELTA', _handleStreamDelta);
+    _ws.addHandler('AI_STREAM_TOOL', _handleStreamTool);
+    _ws.addHandler('AI_STREAM_END', _handleStreamEnd);
     _ws.addHandler('ERROR', _handleError);
+
+    _ws.onReconnect = () {
+      _streamingMessages.clear();
+      if (_currentGroupId != null) {
+        pollNewMessages();
+      }
+    };
   }
 
   void _handleNewMessage(Map<String, dynamic> data) {
@@ -75,13 +92,81 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _handleStreamStart(Map<String, dynamic> data) {
+    final groupId = data['groupId'] as String;
+    final streamId = data['streamId'] as String;
+    final replyToId = data['replyToId'] as String;
+    _streamingMessages[groupId] = StreamingMessage(
+      streamId: streamId,
+      groupId: groupId,
+      replyToId: replyToId,
+    );
+    notifyListeners();
+  }
+
+  void _handleStreamDelta(Map<String, dynamic> data) {
+    final groupId = data['groupId'] as String;
+    final delta = data['delta'] as String;
+    final streaming = _streamingMessages[groupId];
+    if (streaming == null) return;
+    streaming.content += delta;
+    if (streaming.phase != StreamingPhase.streaming) {
+      streaming.phase = StreamingPhase.streaming;
+    }
+    notifyListeners();
+  }
+
+  void _handleStreamTool(Map<String, dynamic> data) {
+    final groupId = data['groupId'] as String;
+    final toolName = data['toolName'] as String;
+    final status = data['status'] as String;
+    final streaming = _streamingMessages[groupId];
+    if (streaming == null) return;
+    if (status == 'start') {
+      streaming.phase = StreamingPhase.toolUsing;
+      streaming.activeToolName = toolName;
+    } else {
+      streaming.phase = streaming.content.isNotEmpty
+          ? StreamingPhase.streaming
+          : StreamingPhase.thinking;
+      streaming.activeToolName = null;
+    }
+    notifyListeners();
+  }
+
+  void _handleStreamEnd(Map<String, dynamic> data) {
+    final groupId = data['groupId'] as String;
+    final messageData = data['message'] as Map<String, dynamic>;
+    final message = Message.fromJson(messageData);
+
+    // Remove streaming state
+    _streamingMessages.remove(groupId);
+
+    // Add final message to list (with dedup)
+    _messages.putIfAbsent(groupId, () => []);
+    if (!_messages[groupId]!.any((m) => m.id == message.id)) {
+      _messages[groupId]!.insert(0, message);
+    }
+
+    // Update group's last message
+    final groupIndex = _groups.indexWhere((g) => g.id == groupId);
+    if (groupIndex != -1) {
+      _groups[groupIndex] = _groups[groupIndex].copyWith(
+        lastMessage: message.content,
+        lastMessageAt: message.createdAt,
+      );
+    }
+
+    notifyListeners();
+  }
+
   Future<void> loadGroups() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final response = await _api.get('/api/groups');
+      final response = await _api.get('/api/v1/groups');
       // API returns array directly
       final List<dynamic> groupsData =
           response is List ? response : (response['groups'] ?? []);
@@ -102,7 +187,7 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final response = await _api.post('/api/groups', {'name': name});
+      final response = await _api.post('/api/v1/groups', {'name': name});
       final group = Group.fromJson(response);
       _groups.insert(0, group);
       notifyListeners();
@@ -127,7 +212,7 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       final response =
-          await _api.post('/api/groups/join', {'inviteCode': inviteCode});
+          await _api.post('/api/v1/groups/join', {'inviteCode': inviteCode});
       final group = Group.fromJson(response);
       _groups.insert(0, group);
       notifyListeners();
@@ -176,7 +261,7 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       final response =
-          await _api.get('/api/messages/group/$groupId/recent?limit=50');
+          await _api.get('/api/v1/messages/group/$groupId/recent?limit=50');
       final List<dynamic> messagesData =
           response is List ? response : (response['content'] ?? []);
       final messages = messagesData.map((m) => Message.fromJson(m)).toList();
@@ -206,7 +291,7 @@ class ChatProvider extends ChangeNotifier {
       };
 
       final response =
-          await _api.post('/api/messages/group/$_currentGroupId', data);
+          await _api.post('/api/v1/messages/group/$_currentGroupId', data);
       final message = Message.fromJson(response);
 
       // Add to local list immediately (dedup protects against WebSocket duplicate)
@@ -219,8 +304,8 @@ class ChatProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } on DioException catch (e) {
-      _error = e.response?.data?['error'] ??
-          e.response?.data?['message'] ??
+      _error = e.response?.data?['message'] ??
+          e.response?.data?['error'] ??
           'Failed to send message';
       notifyListeners();
       return false;
@@ -238,7 +323,7 @@ class ChatProvider extends ChangeNotifier {
 
     try {
       final response =
-          await _api.get('/api/messages/group/$_currentGroupId/recent?limit=20');
+          await _api.get('/api/v1/messages/group/$_currentGroupId/recent?limit=20');
       final List<dynamic> messagesData = response is List ? response : [];
       final messages = messagesData.map((m) => Message.fromJson(m)).toList();
 

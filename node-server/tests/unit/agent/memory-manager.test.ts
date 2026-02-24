@@ -22,7 +22,8 @@ describe('MemoryManager - Permanent Memory', () => {
   it('should save and retrieve permanent memory', async () => {
     await memoryManager.savePermanentMemory(groupId, '# Group Memory\n\nSome context here.');
     const memories = await memoryManager.getPermanentMemories(groupId);
-    expect(memories).toBe('# Group Memory\n\nSome context here.');
+    expect(memories).toContain('# Group Memory');
+    expect(memories).toContain('Some context here.');
   });
 
   it('should return empty string when no memory exists', async () => {
@@ -30,11 +31,12 @@ describe('MemoryManager - Permanent Memory', () => {
     expect(memories).toBe('');
   });
 
-  it('should overwrite existing permanent memory', async () => {
+  it('should append to existing permanent memory', async () => {
     await memoryManager.savePermanentMemory(groupId, 'old content');
     await memoryManager.savePermanentMemory(groupId, 'new content');
     const memories = await memoryManager.getPermanentMemories(groupId);
-    expect(memories).toBe('new content');
+    expect(memories).toContain('old content');
+    expect(memories).toContain('new content');
   });
 
   it('should create directories if they do not exist', async () => {

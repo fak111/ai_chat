@@ -64,7 +64,7 @@ void main() {
   });
 
   Future<void> enterGroup(String groupId) async {
-    when(() => mockApi.get('/api/messages/group/$groupId/recent?limit=50'))
+    when(() => mockApi.get('/api/v1/messages/group/$groupId/recent?limit=50'))
         .thenAnswer((_) async => []);
     await provider.enterGroup(groupId);
   }
@@ -102,7 +102,7 @@ void main() {
   // sendMessage via HTTP POST (core change)
   // ========================================
   group('sendMessage via HTTP POST', () {
-    test('should POST to /api/messages/group/{groupId}', () async {
+    test('should POST to /api/v1/messages/group/{groupId}', () async {
       await enterGroup('group-1');
       when(() => mockApi.post(any(), any()))
           .thenAnswer((_) async => sampleMessageResponse);
@@ -111,7 +111,7 @@ void main() {
 
       expect(result, true);
       verify(() => mockApi.post(
-            '/api/messages/group/group-1',
+            '/api/v1/messages/group/group-1',
             {'content': 'Hello'},
           )).called(1);
     });
@@ -131,7 +131,7 @@ void main() {
       await provider.sendMessage('Reply text');
 
       verify(() => mockApi.post(
-            '/api/messages/group/group-1',
+            '/api/v1/messages/group/group-1',
             {'content': 'Reply text', 'replyToId': 'reply-to-id'},
           )).called(1);
     });
@@ -239,7 +239,7 @@ void main() {
       await provider.sendMessage('  Hello  ');
 
       verify(() => mockApi.post(
-            '/api/messages/group/group-1',
+            '/api/v1/messages/group/group-1',
             {'content': 'Hello'},
           )).called(1);
     });
@@ -313,7 +313,7 @@ void main() {
     });
 
     test('should update group lastMessage on new message', () async {
-      when(() => mockApi.get('/api/groups')).thenAnswer((_) async => [
+      when(() => mockApi.get('/api/v1/groups')).thenAnswer((_) async => [
             {...sampleGroupJson, 'id': 'group-1'},
           ]);
       await provider.loadGroups();
@@ -343,7 +343,7 @@ void main() {
       polledMsg['id'] = 'msg-poll-1';
       polledMsg['content'] = 'Polled message';
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=20'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=20'))
           .thenAnswer((_) async => [polledMsg]);
 
       await provider.pollNewMessages();
@@ -360,7 +360,7 @@ void main() {
       expect(provider.currentMessages.length, 1);
 
       // Poll returns the same message
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=20'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=20'))
           .thenAnswer((_) async => [sampleMessageResponse]);
 
       await provider.pollNewMessages();
@@ -377,7 +377,7 @@ void main() {
     test('should handle API errors silently', () async {
       await enterGroup('group-1');
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=20'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=20'))
           .thenThrow(Exception('network error'));
 
       // Should not throw
@@ -393,7 +393,7 @@ void main() {
       final polledMsg = Map<String, dynamic>.from(sampleMessageResponse);
       polledMsg['id'] = 'msg-poll-2';
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=20'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=20'))
           .thenAnswer((_) async => [polledMsg]);
 
       var notified = false;
@@ -407,7 +407,7 @@ void main() {
     test('should not notify when no new messages', () async {
       await enterGroup('group-1');
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=20'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=20'))
           .thenAnswer((_) async => []);
 
       var notified = false;
@@ -424,7 +424,7 @@ void main() {
   // ========================================
   group('loadGroups', () {
     test('should fetch and parse groups from API (array format)', () async {
-      when(() => mockApi.get('/api/groups'))
+      when(() => mockApi.get('/api/v1/groups'))
           .thenAnswer((_) async => [sampleGroupJson]);
 
       await provider.loadGroups();
@@ -434,7 +434,7 @@ void main() {
     });
 
     test('should handle API error with DioException', () async {
-      when(() => mockApi.get('/api/groups')).thenThrow(DioException(
+      when(() => mockApi.get('/api/v1/groups')).thenThrow(DioException(
         requestOptions: RequestOptions(path: ''),
         response: Response(
           requestOptions: RequestOptions(path: ''),
@@ -449,7 +449,7 @@ void main() {
     });
 
     test('should handle generic error', () async {
-      when(() => mockApi.get('/api/groups')).thenThrow(Exception('boom'));
+      when(() => mockApi.get('/api/v1/groups')).thenThrow(Exception('boom'));
 
       await provider.loadGroups();
 
@@ -457,7 +457,7 @@ void main() {
     });
 
     test('should clear loading state after completion', () async {
-      when(() => mockApi.get('/api/groups')).thenAnswer((_) async => []);
+      when(() => mockApi.get('/api/v1/groups')).thenAnswer((_) async => []);
 
       await provider.loadGroups();
 
@@ -470,7 +470,7 @@ void main() {
   // ========================================
   group('createGroup', () {
     test('should POST and return new group', () async {
-      when(() => mockApi.post('/api/groups', any())).thenAnswer((_) async => {
+      when(() => mockApi.post('/api/v1/groups', any())).thenAnswer((_) async => {
             ...sampleGroupJson,
             'id': 'g-new',
             'name': 'New Group',
@@ -484,7 +484,7 @@ void main() {
     });
 
     test('should handle DioException error', () async {
-      when(() => mockApi.post('/api/groups', any())).thenThrow(DioException(
+      when(() => mockApi.post('/api/v1/groups', any())).thenThrow(DioException(
         requestOptions: RequestOptions(path: ''),
         response: Response(
           requestOptions: RequestOptions(path: ''),
@@ -500,7 +500,7 @@ void main() {
     });
 
     test('should handle generic error', () async {
-      when(() => mockApi.post('/api/groups', any()))
+      when(() => mockApi.post('/api/v1/groups', any()))
           .thenThrow(Exception('boom'));
 
       final group = await provider.createGroup('Test');
@@ -515,7 +515,7 @@ void main() {
   // ========================================
   group('joinGroup', () {
     test('should POST invite code and return group', () async {
-      when(() => mockApi.post('/api/groups/join', any()))
+      when(() => mockApi.post('/api/v1/groups/join', any()))
           .thenAnswer((_) async => {
                 ...sampleGroupJson,
                 'id': 'g-joined',
@@ -530,7 +530,7 @@ void main() {
     });
 
     test('should handle DioException error', () async {
-      when(() => mockApi.post('/api/groups/join', any()))
+      when(() => mockApi.post('/api/v1/groups/join', any()))
           .thenThrow(DioException(
         requestOptions: RequestOptions(path: ''),
         response: Response(
@@ -547,7 +547,7 @@ void main() {
     });
 
     test('should handle generic error', () async {
-      when(() => mockApi.post('/api/groups/join', any()))
+      when(() => mockApi.post('/api/v1/groups/join', any()))
           .thenThrow(Exception('boom'));
 
       final group = await provider.joinGroup('ABC');
@@ -574,7 +574,7 @@ void main() {
     });
 
     test('should load messages', () async {
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=50'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=50'))
           .thenAnswer((_) async => [sampleMessageResponse]);
 
       await provider.enterGroup('group-1');
@@ -583,7 +583,7 @@ void main() {
     });
 
     test('should not reload messages if already loaded', () async {
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=50'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=50'))
           .thenAnswer((_) async => [sampleMessageResponse]);
 
       await provider.enterGroup('group-1');
@@ -714,7 +714,7 @@ void main() {
     });
 
     test('should return group when found', () async {
-      when(() => mockApi.get('/api/groups'))
+      when(() => mockApi.get('/api/v1/groups'))
           .thenAnswer((_) async => [sampleGroupJson]);
 
       await provider.loadGroups();
@@ -732,7 +732,7 @@ void main() {
     test('should fetch recent messages', () async {
       await enterGroup('group-1');
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=50'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=50'))
           .thenAnswer((_) async => [sampleMessageResponse]);
 
       await provider.loadMessages('group-1');
@@ -743,7 +743,7 @@ void main() {
     test('should handle API error', () async {
       await enterGroup('group-1');
 
-      when(() => mockApi.get('/api/messages/group/group-1/recent?limit=50'))
+      when(() => mockApi.get('/api/v1/messages/group/group-1/recent?limit=50'))
           .thenThrow(Exception('fail'));
 
       await provider.loadMessages('group-1');
@@ -786,7 +786,7 @@ void main() {
       await provider.sendMessage('你刚才说的很有道理');
 
       verify(() => mockApi.post(
-            '/api/messages/group/group-1',
+            '/api/v1/messages/group/group-1',
             {'content': '你刚才说的很有道理', 'replyToId': 'ai-msg-1'},
           )).called(1);
     });

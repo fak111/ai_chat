@@ -61,7 +61,7 @@ void main() {
         );
       });
 
-      final response = await dio.get('/api/groups');
+      final response = await dio.get('/api/v1/groups');
 
       expect(response.statusCode, 200);
       expect(callCount, 2);
@@ -85,7 +85,7 @@ void main() {
       });
 
       expect(
-        () => dio.get('/api/groups'),
+        () => dio.get('/api/v1/groups'),
         throwsA(isA<DioException>().having(
           (e) => e.response?.statusCode,
           'statusCode',
@@ -109,7 +109,7 @@ void main() {
       });
 
       expect(
-        () => dio.get('/api/groups'),
+        () => dio.get('/api/v1/groups'),
         throwsA(isA<DioException>().having(
           (e) => e.response?.statusCode,
           'statusCode',
@@ -120,7 +120,7 @@ void main() {
       verifyNever(() => mockTokenManager.getValidAccessToken());
     });
 
-    test('/api/auth/refresh 401 does not retry', () async {
+    test('/api/v1/auth/refresh 401 does not retry', () async {
       when(() => mockStorage.read(key: 'access_token'))
           .thenAnswer((_) async => 'token');
 
@@ -137,7 +137,7 @@ void main() {
       });
 
       expect(
-        () => dio.post('/api/auth/refresh', data: {}),
+        () => dio.post('/api/v1/auth/refresh', data: {}),
         throwsA(isA<DioException>()),
       );
 
@@ -148,7 +148,7 @@ void main() {
       verifyNever(() => mockTokenManager.getValidAccessToken());
     });
 
-    test('/api/auth/login 401 does not retry', () async {
+    test('/api/v1/auth/login 401 does not retry', () async {
       when(() => mockStorage.read(key: 'access_token'))
           .thenAnswer((_) async => null);
 
@@ -165,7 +165,7 @@ void main() {
       });
 
       expect(
-        () => dio.post('/api/auth/login', data: {}),
+        () => dio.post('/api/v1/auth/login', data: {}),
         throwsA(isA<DioException>()),
       );
 

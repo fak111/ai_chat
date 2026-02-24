@@ -82,7 +82,7 @@ void main() {
         (_) async => Response(
           data: {'accessToken': newToken, 'refreshToken': newRefresh},
           statusCode: 200,
-          requestOptions: RequestOptions(path: '/api/auth/refresh'),
+          requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
         ),
       );
 
@@ -107,7 +107,7 @@ void main() {
         (_) async => Response(
           data: {'accessToken': newToken, 'refreshToken': 'new-refresh'},
           statusCode: 200,
-          requestOptions: RequestOptions(path: '/api/auth/refresh'),
+          requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
         ),
       );
 
@@ -144,9 +144,9 @@ void main() {
         DioException(
           response: Response(
             statusCode: 401,
-            requestOptions: RequestOptions(path: '/api/auth/refresh'),
+            requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
           ),
-          requestOptions: RequestOptions(path: '/api/auth/refresh'),
+          requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
         ),
       );
 
@@ -201,7 +201,7 @@ void main() {
           return Response(
             data: {'accessToken': newToken, 'refreshToken': 'new-refresh'},
             statusCode: 200,
-            requestOptions: RequestOptions(path: '/api/auth/refresh'),
+            requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
           );
         },
       );
@@ -236,7 +236,7 @@ void main() {
           return Response(
             data: {'accessToken': token, 'refreshToken': 'refresh-$callCount'},
             statusCode: 200,
-            requestOptions: RequestOptions(path: '/api/auth/refresh'),
+            requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
           );
         },
       );
@@ -265,7 +265,7 @@ void main() {
         (_) async => Response(
           data: {'accessToken': newToken, 'refreshToken': 'new-refresh'},
           statusCode: 200,
-          requestOptions: RequestOptions(path: '/api/auth/refresh'),
+          requestOptions: RequestOptions(path: '/api/v1/auth/refresh'),
         ),
       );
 

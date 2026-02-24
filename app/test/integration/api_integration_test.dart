@@ -46,8 +46,8 @@ void main() {
     const testPassword = 'Test123456';
     const testNickname = 'DartTester';
 
-    test('POST /api/auth/register should create new user', () async {
-      final response = await dio.post('/api/auth/register', data: {
+    test('POST /api/v1/auth/register should create new user', () async {
+      final response = await dio.post('/api/v1/auth/register', data: {
         'email': testEmail,
         'password': testPassword,
         'nickname': testNickname,
@@ -57,9 +57,9 @@ void main() {
       expect(response.data['message'], contains('验证邮件'));
     });
 
-    test('POST /api/auth/register should fail for duplicate email', () async {
+    test('POST /api/v1/auth/register should fail for duplicate email', () async {
       try {
-        await dio.post('/api/auth/register', data: {
+        await dio.post('/api/v1/auth/register', data: {
           'email': testEmail,
           'password': testPassword,
           'nickname': 'Another',
@@ -70,9 +70,9 @@ void main() {
       }
     });
 
-    test('POST /api/auth/login should fail for unverified email', () async {
+    test('POST /api/v1/auth/login should fail for unverified email', () async {
       try {
-        await dio.post('/api/auth/login', data: {
+        await dio.post('/api/v1/auth/login', data: {
           'email': testEmail,
           'password': testPassword,
         });
@@ -92,7 +92,7 @@ void main() {
 
     setUpAll(() async {
       // Register
-      await dio.post('/api/auth/register', data: {
+      await dio.post('/api/v1/auth/register', data: {
         'email': testEmail,
         'password': testPassword,
         'nickname': 'AuthTester',
@@ -105,12 +105,12 @@ void main() {
           '"UPDATE users SET email_verified=true WHERE email=\'$testEmail\';"');
     });
 
-    test('POST /api/auth/login should return tokens after verification', () async {
+    test('POST /api/v1/auth/login should return tokens after verification', () async {
       // This test may fail if email is not verified
       // Skip in automated runs, useful for manual testing
     }, skip: 'Requires manual email verification');
 
-    test('GET /api/auth/me should return current user', () async {
+    test('GET /api/v1/auth/me should return current user', () async {
       // Requires valid token
     }, skip: 'Requires authenticated session');
   });

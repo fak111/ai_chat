@@ -91,7 +91,7 @@ describe('Group Routes', () => {
         .send({ name: '' });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toBe('群聊名称不能为空');
+      expect(res.body.message).toBe('群聊名称不能为空');
     });
   });
 
@@ -121,7 +121,7 @@ describe('Group Routes', () => {
         .send({ inviteCode: 'INVALID' });
 
       expect(res.status).toBe(404);
-      expect(res.body.error).toBe('邀请码无效');
+      expect(res.body.message).toBe('邀请码无效');
     });
 
     it('should return 409 if already a member', async () => {
@@ -132,7 +132,7 @@ describe('Group Routes', () => {
         .send({ inviteCode: 'ABC123' });
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toBe('您已在该群聊中');
+      expect(res.body.message).toBe('您已在该群聊中');
     });
   });
 

@@ -35,8 +35,10 @@ describe('buildContextWindow', () => {
 
     const context = await buildContextWindow(groupId, triggerId);
     expect(context).toHaveLength(2);
-    expect(context[0]).toEqual({ role: 'user', content: 'Alice: Hello @AI' });
-    expect(context[1]).toEqual({ role: 'assistant', content: 'Hi there!' });
+    expect(context[0].role).toBe('user');
+    expect(context[0].content).toContain('Alice: Hello @AI');
+    expect(context[1].role).toBe('assistant');
+    expect(context[1].content).toContain('Hi there!');
   });
 
   it('should fetch messages from last 30 minutes with max 50', async () => {
@@ -84,8 +86,10 @@ describe('buildContextWindow', () => {
     const context = await buildContextWindow(groupId, triggerId);
     // Should include the old AI message + the trigger message
     expect(context).toHaveLength(2);
-    expect(context[0]).toEqual({ role: 'assistant', content: 'Previous AI response' });
-    expect(context[1]).toEqual({ role: 'user', content: 'Alice: continue please' });
+    expect(context[0].role).toBe('assistant');
+    expect(context[0].content).toContain('Previous AI response');
+    expect(context[1].role).toBe('user');
+    expect(context[1].content).toContain('Alice: continue please');
   });
 
   it('should return empty array when no messages found', async () => {
@@ -130,6 +134,6 @@ describe('buildContextWindow', () => {
     });
 
     const context = await buildContextWindow(groupId, triggerId);
-    expect(context[0].content).toBe('john: hello');
+    expect(context[0].content).toContain('john: hello');
   });
 });

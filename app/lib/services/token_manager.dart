@@ -74,7 +74,7 @@ class TokenManager {
       }
 
       final response = await _dio.post(
-        '/api/auth/refresh',
+        '/api/v1/auth/refresh',
         data: {'refreshToken': refreshToken},
       );
 

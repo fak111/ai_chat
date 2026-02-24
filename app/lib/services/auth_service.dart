@@ -16,7 +16,7 @@ class AuthService {
   }
 
   Future<User> login(String email, String password) async {
-    final response = await _api.post('/api/auth/login', {
+    final response = await _api.post('/api/v1/auth/login', {
       'email': email,
       'password': password,
     });
@@ -29,7 +29,7 @@ class AuthService {
   }
 
   Future<void> register(String email, String password, String? nickname) async {
-    await _api.post('/api/auth/register', {
+    await _api.post('/api/v1/auth/register', {
       'email': email,
       'password': password,
       if (nickname != null) 'nickname': nickname,
@@ -37,12 +37,12 @@ class AuthService {
   }
 
   Future<void> verifyEmail(String token) async {
-    await _api.post('/api/auth/verify', {'token': token});
+    await _api.post('/api/v1/auth/verify', {'token': token});
   }
 
   Future<User?> getCurrentUser() async {
     try {
-      final response = await _api.get('/api/auth/me');
+      final response = await _api.get('/api/v1/auth/me');
       return User.fromJson(response);
     } catch (e) {
       return null;
@@ -57,7 +57,7 @@ class AuthService {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) throw Exception('No refresh token');
 
-    final response = await _api.post('/api/auth/refresh', {
+    final response = await _api.post('/api/v1/auth/refresh', {
       'refreshToken': refreshToken,
     });
 
@@ -68,9 +68,21 @@ class AuthService {
     }
   }
 
+  Future<User> updateNickname(String nickname) async {
+    final response = await _api.put('/api/v1/auth/profile', {
+      'nickname': nickname,
+    });
+    return User.fromJson(response);
+  }
+
+  Future<User> uploadAvatar(List<int> bytes, String filename) async {
+    final response = await _api.uploadBytes('/api/v1/auth/avatar', bytes, filename);
+    return User.fromJson(response);
+  }
+
   Future<void> logout() async {
     try {
-      await _api.post('/api/auth/logout', {});
+      await _api.post('/api/v1/auth/logout', {});
     } catch (_) {
       // Ignore errors during logout
     }

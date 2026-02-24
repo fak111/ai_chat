@@ -12,7 +12,7 @@ class ApiService {
 
   static const String baseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://118.196.78.215');
 
-  static const _authPaths = {'/api/auth/refresh', '/api/auth/login'};
+  static const _authPaths = {'/api/v1/auth/refresh', '/api/v1/auth/login'};
 
   ApiService._internal() {
     _dio = Dio(BaseOptions(
@@ -75,7 +75,7 @@ class ApiService {
   static String extractErrorMessage(DioException e, [String fallback = '请求失败，请稍后重试']) {
     final data = e.response?.data;
     if (data is Map<String, dynamic>) {
-      return data['error'] as String? ?? data['message'] as String? ?? fallback;
+      return data['message'] as String? ?? data['error'] as String? ?? fallback;
     }
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout) {
@@ -108,6 +108,18 @@ class ApiService {
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> data) async {
     try {
       final response = await _dio.put(path, data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(extractErrorMessage(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadBytes(String path, List<int> bytes, String filename, {String field = 'avatar'}) async {
+    try {
+      final formData = FormData.fromMap({
+        field: MultipartFile.fromBytes(bytes, filename: filename),
+      });
+      final response = await _dio.post(path, data: formData);
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw Exception(extractErrorMessage(e));

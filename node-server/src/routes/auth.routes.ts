@@ -1,5 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { authRequired } from '../middleware/auth.middleware.js';
 import {
   register,
@@ -8,6 +12,8 @@ import {
   refreshToken,
   logout,
   getMe,
+  updateProfile,
+  updateAvatar,
 } from '../services/auth.service.js';
 
 export const authRoutes = Router();
@@ -99,6 +105,57 @@ authRoutes.post('/logout', async (req: Request, res: Response, next: NextFunctio
 // GET /api/auth/me
 authRoutes.get('/me', authRequired, (req: Request, res: Response) => {
   res.json(getMe(req.user!));
+});
+
+// PUT /api/auth/profile
+const profileSchema = z.object({
+  nickname: z.string().min(1).max(50).optional(),
+});
+
+authRoutes.put('/profile', authRequired, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = profileSchema.parse(req.body);
+    const result = await updateProfile(req.user!.id, data);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/avatar
+const avatarDir = path.resolve('storage/uploads/avatars');
+fs.mkdirSync(avatarDir, { recursive: true });
+
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination: avatarDir,
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.jpg';
+      cb(null, `${uuidv4()}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (_req, file, cb) => {
+    const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
+    if (allowed.test(path.extname(file.originalname))) {
+      cb(null, true);
+    } else {
+      cb(new Error('只支持 jpg/png/gif/webp 格式'));
+    }
+  },
+});
+
+authRoutes.post('/avatar', authRequired, avatarUpload.single('avatar'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ code: 70002, message: '请选择图片' });
+      return;
+    }
+    const result = await updateAvatar(req.user!.id, req.file.filename);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 });
 
 function verifyHtmlPage(success: boolean, message: string): string {

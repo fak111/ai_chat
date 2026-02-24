@@ -124,7 +124,7 @@ describe('Auth Routes', () => {
       });
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toBe('该邮箱已注册');
+      expect(res.body.message).toBe('该邮箱已注册');
     });
 
     it('should return 400 for missing email', async () => {
@@ -132,7 +132,7 @@ describe('Auth Routes', () => {
         password: 'Test1234',
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(422);
     });
 
     it('should return 400 for invalid password', async () => {
@@ -164,7 +164,7 @@ describe('Auth Routes', () => {
       const res = await request(app, 'POST', '/api/auth/verify', { token: 'invalid' });
 
       expect(res.status).toBe(404);
-      expect(res.body.error).toBe('验证链接无效');
+      expect(res.body.message).toBe('验证链接无效');
     });
   });
 
@@ -226,7 +226,7 @@ describe('Auth Routes', () => {
       });
 
       expect(res.status).toBe(401);
-      expect(res.body.error).toBe('邮箱或密码错误');
+      expect(res.body.message).toBe('邮箱或密码错误');
     });
   });
 

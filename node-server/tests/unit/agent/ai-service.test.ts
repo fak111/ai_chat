@@ -1,16 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock all dependencies
+// --- Mock all external dependencies ---
+
 vi.mock('../../../src/db/client.js', () => ({
   query: vi.fn(),
 }));
 
 vi.mock('../../../src/agent/context-builder.js', () => ({
   buildContextWindow: vi.fn(),
+  buildGroupContext: vi.fn().mockResolvedValue('群成员:\n- Tester\n- A宝 (AI助手)'),
 }));
 
 vi.mock('../../../src/agent/soul.js', () => ({
   buildSystemPrompt: vi.fn(),
+}));
+
+vi.mock('../../../src/agent/user-profiler.js', () => ({
+  updateGroupProfiles: vi.fn().mockResolvedValue(undefined),
+  getProfileSummary: vi.fn().mockResolvedValue(''),
 }));
 
 vi.mock('../../../src/agent/memory/memory-manager.js', () => ({
@@ -26,9 +33,65 @@ vi.mock('../../../src/websocket/ws-session-manager.js', () => ({
   },
 }));
 
-// Mock global fetch
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+// Mock all tool imports
+vi.mock('../../../src/agent/tools/builtin/bash-tool.js', () => ({
+  bashTool: { name: 'bash', description: 'mock', execute: vi.fn() },
+}));
+vi.mock('../../../src/agent/tools/builtin/query-db-tool.js', () => ({
+  queryDbTool: { name: 'query_db', description: 'mock', execute: vi.fn() },
+}));
+vi.mock('../../../src/agent/tools/builtin/remember-tool.js', () => ({
+  createRememberTool: vi.fn(() => ({ name: 'remember', description: 'mock', execute: vi.fn() })),
+}));
+vi.mock('../../../src/agent/tools/builtin/read-file-tool.js', () => ({
+  readFileTool: { name: 'read_file', description: 'mock', execute: vi.fn() },
+}));
+vi.mock('../../../src/agent/tools/builtin/edit-file-tool.js', () => ({
+  editFileTool: { name: 'edit_file', description: 'mock', execute: vi.fn() },
+}));
+vi.mock('../../../src/agent/tools/builtin/create-skill-tool.js', () => ({
+  createSkillTool: vi.fn(() => ({ name: 'create_skill', description: 'mock', execute: vi.fn() })),
+}));
+vi.mock('../../../src/agent/tools/builtin/web-search-tool.js', () => ({
+  webSearchTool: { name: 'web_search', description: 'mock', execute: vi.fn() },
+}));
+
+// Mock SkillLoader
+vi.mock('../../../src/agent/tools/skill-loader.js', () => ({
+  SkillLoader: vi.fn().mockImplementation(() => ({
+    loadAll: vi.fn().mockResolvedValue(undefined),
+    startWatching: vi.fn(),
+    dispose: vi.fn(),
+    getAllTools: vi.fn().mockReturnValue([]),
+    getLoadedSkills: vi.fn().mockReturnValue([]),
+    getPromptFragment: vi.fn().mockReturnValue(''),
+    onChange: null,
+  })),
+}));
+
+// Mock Pi Agent framework
+const mockPrompt = vi.fn().mockResolvedValue(undefined);
+const mockSubscribe = vi.fn().mockReturnValue(vi.fn()); // returns unsubscribe fn
+const mockSetSystemPrompt = vi.fn();
+const mockSetTools = vi.fn();
+
+vi.mock('@mariozechner/pi-agent-core', () => ({
+  Agent: vi.fn().mockImplementation(() => ({
+    prompt: mockPrompt,
+    subscribe: mockSubscribe,
+    setSystemPrompt: mockSetSystemPrompt,
+    setTools: mockSetTools,
+  })),
+}));
+
+vi.mock('@mariozechner/pi-ai', () => ({
+  registerBuiltInApiProviders: vi.fn(),
+}));
+
+// Mock logger
+vi.mock('../../../src/utils/logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
 
 import { query } from '../../../src/db/client.js';
 import { buildContextWindow } from '../../../src/agent/context-builder.js';
@@ -56,17 +119,20 @@ describe('AIService', () => {
     aiService = new AIService();
   });
 
-  it('should call DeepSeek API and broadcast AI response', async () => {
+  it('should process message via Pi Agent and broadcast response', async () => {
     mockBuildContext.mockResolvedValue([
       { role: 'user', content: 'Alice: @AI hello' },
     ]);
     mockBuildPrompt.mockResolvedValue('You are A宝');
 
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'Hi! I am A宝.' } }],
-      }),
+    // Simulate Agent producing text via subscribe callback
+    mockSubscribe.mockImplementation((callback: (event: any) => void) => {
+      // Simulate streaming text events
+      callback({
+        type: 'message_update',
+        assistantMessageEvent: { type: 'text_delta', delta: 'Hi! I am A宝.' },
+      });
+      return vi.fn(); // unsubscribe
     });
 
     // Insert AI message returns row
@@ -88,38 +154,35 @@ describe('AIService', () => {
       groupId,
     );
 
-    // Verify DeepSeek API was called
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const fetchArgs = mockFetch.mock.calls[0];
-    expect(fetchArgs[0]).toBe('https://api.deepseek.com/v1/chat/completions');
-    const body = JSON.parse(fetchArgs[1].body);
-    expect(body.model).toBe('deepseek-chat');
-    expect(body.messages[0].role).toBe('system');
-    expect(body.messages[0].content).toBe('You are A宝');
+    // Agent.prompt was called
+    expect(mockPrompt).toHaveBeenCalledTimes(1);
 
-    // Verify AI message was saved to DB
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    const insertArgs = mockQuery.mock.calls[0];
-    expect(insertArgs[0]).toContain('INSERT INTO messages');
-    expect(insertArgs[0]).toContain('AI');
+    // AI message was saved to DB
+    expect(mockQuery).toHaveBeenCalled();
+    const insertCall = mockQuery.mock.calls.find(
+      (call) => typeof call[0] === 'string' && call[0].includes('INSERT INTO messages'),
+    );
+    expect(insertCall).toBeDefined();
 
-    // Verify broadcast
-    expect(mockBroadcast).toHaveBeenCalledTimes(1);
-    const broadcastMsg = mockBroadcast.mock.calls[0][1];
-    expect(broadcastMsg.type).toBe('NEW_MESSAGE');
+    // Stream events were broadcast (AI_STREAM_START + AI_STREAM_DELTA + AI_STREAM_END)
+    expect(mockBroadcast).toHaveBeenCalled();
+    const broadcastCalls = mockBroadcast.mock.calls.map((c) => c[1]);
+    const streamStart = broadcastCalls.find((m: any) => m.type === 'AI_STREAM_START');
+    const streamEnd = broadcastCalls.find((m: any) => m.type === 'AI_STREAM_END');
+    expect(streamStart).toBeDefined();
+    expect(streamEnd).toBeDefined();
+    expect(streamEnd.message.content).toBe('Hi! I am A宝.');
   });
 
-  it('should send fallback message on API failure', async () => {
+  it('should send fallback message on Agent error', async () => {
     mockBuildContext.mockResolvedValue([
       { role: 'user', content: 'Alice: @AI hello' },
     ]);
     mockBuildPrompt.mockResolvedValue('You are A宝');
+    mockSubscribe.mockReturnValue(vi.fn());
 
-    mockFetch.mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-    });
+    // Agent.prompt throws
+    mockPrompt.mockRejectedValueOnce(new Error('API error'));
 
     // Insert fallback message
     mockQuery.mockResolvedValueOnce({
@@ -140,10 +203,11 @@ describe('AIService', () => {
       groupId,
     );
 
-    // Should still broadcast fallback
-    expect(mockBroadcast).toHaveBeenCalledTimes(1);
-    const broadcastMsg = mockBroadcast.mock.calls[0][1];
-    expect(broadcastMsg.message.content).toBe('抱歉，我暂时无法回复，请稍后再试。');
+    // Should broadcast AI_STREAM_END with fallback
+    const broadcastCalls = mockBroadcast.mock.calls.map((c) => c[1]);
+    const streamEnd = broadcastCalls.find((m: any) => m.type === 'AI_STREAM_END');
+    expect(streamEnd).toBeDefined();
+    expect(streamEnd.message.content).toBe('抱歉，我暂时无法回复，请稍后再试。');
   });
 
   it('should skip processing when no API key', async () => {
@@ -155,22 +219,22 @@ describe('AIService', () => {
       groupId,
     );
 
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockPrompt).not.toHaveBeenCalled();
     expect(mockQuery).not.toHaveBeenCalled();
   });
 
-  it('should include reply context in API call', async () => {
+  it('should build context and pass to Agent prompt', async () => {
     mockBuildContext.mockResolvedValue([
       { role: 'assistant', content: 'Previous AI response' },
       { role: 'user', content: 'Alice: continue please' },
     ]);
     mockBuildPrompt.mockResolvedValue('You are A宝');
-
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'Continuing...' } }],
-      }),
+    mockSubscribe.mockImplementation((callback: (event: any) => void) => {
+      callback({
+        type: 'message_update',
+        assistantMessageEvent: { type: 'text_delta', delta: 'Continuing...' },
+      });
+      return vi.fn();
     });
 
     mockQuery.mockResolvedValueOnce({
@@ -187,20 +251,22 @@ describe('AIService', () => {
       groupId,
     );
 
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-    // system + 2 context messages
-    expect(body.messages).toHaveLength(3);
-    expect(body.messages[1].role).toBe('assistant');
-    expect(body.messages[2].role).toBe('user');
+    // Context builder was called with correct args
+    expect(mockBuildContext).toHaveBeenCalledWith(groupId, messageId);
+
+    // Agent.prompt received the combined context as user prompt
+    const promptArg = mockPrompt.mock.calls[0][0] as string;
+    expect(promptArg).toContain('Previous AI response');
+    expect(promptArg).toContain('Alice: continue please');
   });
 
-  it('should handle fetch network error gracefully', async () => {
+  it('should handle Agent crash gracefully without throwing', async () => {
     mockBuildContext.mockResolvedValue([
       { role: 'user', content: 'Alice: @AI hello' },
     ]);
     mockBuildPrompt.mockResolvedValue('You are A宝');
-
-    mockFetch.mockRejectedValue(new Error('Network error'));
+    mockSubscribe.mockReturnValue(vi.fn());
+    mockPrompt.mockRejectedValueOnce(new Error('Network error'));
 
     // Insert fallback
     mockQuery.mockResolvedValueOnce({
@@ -213,11 +279,13 @@ describe('AIService', () => {
     });
 
     // Should not throw
-    await aiService.processMessage(
-      { id: messageId, content: '@AI hello', message_type: 'USER' } as any,
-      groupId,
-    );
+    await expect(
+      aiService.processMessage(
+        { id: messageId, content: '@AI hello', message_type: 'USER' } as any,
+        groupId,
+      ),
+    ).resolves.toBeUndefined();
 
-    expect(mockBroadcast).toHaveBeenCalledTimes(1);
+    expect(mockBroadcast).toHaveBeenCalled();
   });
 });

@@ -2,7 +2,6 @@
 .mcp.json
 .playwright-mcp/
 temp/
-doc/develop/
 doc/iter.md
 video/
 

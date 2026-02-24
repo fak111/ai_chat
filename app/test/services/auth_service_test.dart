@@ -29,7 +29,7 @@ void main() {
 
     group('login', () {
       test('should return User and store tokens on successful login', () async {
-        when(() => mockApi.post('/api/auth/login', any())).thenAnswer((_) async => {
+        when(() => mockApi.post('/api/v1/auth/login', any())).thenAnswer((_) async => {
           'accessToken': 'test-access-token',
           'refreshToken': 'test-refresh-token',
           'user': {
@@ -51,7 +51,7 @@ void main() {
 
     group('register', () {
       test('should call register API with correct parameters', () async {
-        when(() => mockApi.post('/api/auth/register', any())).thenAnswer((_) async => {
+        when(() => mockApi.post('/api/v1/auth/register', any())).thenAnswer((_) async => {
           'message': 'Verification email sent',
         });
 
@@ -73,7 +73,7 @@ void main() {
 
     group('getCurrentUser', () {
       test('should return User when authenticated', () async {
-        when(() => mockApi.get('/api/auth/me')).thenAnswer((_) async => {
+        when(() => mockApi.get('/api/v1/auth/me')).thenAnswer((_) async => {
           'id': 'user-123',
           'email': 'test@example.com',
           'nickname': 'TestUser',
@@ -84,7 +84,7 @@ void main() {
       });
 
       test('should return null when not authenticated', () async {
-        when(() => mockApi.get('/api/auth/me')).thenThrow(Exception('Unauthorized'));
+        when(() => mockApi.get('/api/v1/auth/me')).thenThrow(Exception('Unauthorized'));
 
         // AuthService.getCurrentUser catches exceptions and returns null
         expect(true, true);
@@ -95,7 +95,7 @@ void main() {
       test('should update access token on successful refresh', () async {
         when(() => mockStorage.read(key: 'refresh_token'))
             .thenAnswer((_) async => 'old-refresh-token');
-        when(() => mockApi.post('/api/auth/refresh', any())).thenAnswer((_) async => {
+        when(() => mockApi.post('/api/v1/auth/refresh', any())).thenAnswer((_) async => {
           'accessToken': 'new-access-token',
         });
         when(() => mockStorage.write(key: any(named: 'key'), value: any(named: 'value')))
@@ -115,14 +115,14 @@ void main() {
 
     group('logout', () {
       test('should clear storage on logout', () async {
-        when(() => mockApi.post('/api/auth/logout', any())).thenAnswer((_) async => {});
+        when(() => mockApi.post('/api/v1/auth/logout', any())).thenAnswer((_) async => {});
         when(() => mockStorage.deleteAll()).thenAnswer((_) async {});
 
         expect(true, true);
       });
 
       test('should clear storage even if API call fails', () async {
-        when(() => mockApi.post('/api/auth/logout', any())).thenThrow(Exception('Network error'));
+        when(() => mockApi.post('/api/v1/auth/logout', any())).thenThrow(Exception('Network error'));
         when(() => mockStorage.deleteAll()).thenAnswer((_) async {});
 
         // AuthService.logout catches API errors and still clears storage

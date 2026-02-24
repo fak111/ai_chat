@@ -128,7 +128,7 @@ describe('Auth', () => {
       .send({ email: 'test@example.com', password: 'Test123456' });
 
     expect(res.status).toBe(409);
-    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('message');
   });
 
   // 3. Register password too short -> 400
@@ -138,7 +138,7 @@ describe('Auth', () => {
       .send({ email: 'new@example.com', password: '123' });
 
     expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty('error');
+    expect(res.body).toHaveProperty('message');
   });
 
   // 4. Login email not verified -> 401
@@ -153,7 +153,7 @@ describe('Auth', () => {
       .send({ email: 'test@example.com', password: 'Test123456' });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain('验证邮箱');
+    expect(res.body.message).toContain('验证邮箱');
   });
 
   // 5. Login success -> 200 with tokens

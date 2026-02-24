@@ -1,0 +1,35 @@
+use_default_settings: true
+
+general:
+  instance_name: "A宝搜索"
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "827d732d6d10dc4f7a6777d7736365e57535e42b9f58aa3276279fdfc1f0ca71"
+  limiter: false
+  image_proxy: false
+  port: 8080
+  bind_address: "0.0.0.0"
+
+redis:
+  url: redis://redis:6379/1
+
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: wikipedia
+    disabled: false
+
+outgoing:
+  request_timeout: 10

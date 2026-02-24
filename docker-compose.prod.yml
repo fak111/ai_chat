@@ -26,6 +26,20 @@ services:
       timeout: 5s
       retries: 5
 
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: abao-searxng
+    restart: always
+    ports:
+      - "127.0.0.1:8889:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8889/
+    depends_on:
+      redis:
+        condition: service_healthy
+
   server:
     image: abao-server:latest
     container_name: abao-server
@@ -48,6 +62,7 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${MAIL_FROM}
       APP_BASE_URL: ${APP_BASE_URL}
+      SEARXNG_URL: http://searxng:8080
     depends_on:
       postgres:
         condition: service_healthy

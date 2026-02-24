@@ -32,6 +32,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # SearXNG meta search engine
+  searxng:
+    image: docker.io/searxng/searxng:latest
+    container_name: abao-searxng
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8889:8080"
+    volumes:
+      - ./searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:8889/
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Node.js Backend
   server:
     build:
@@ -60,6 +75,7 @@ services:
       R2_BUCKET_NAME: ${R2_BUCKET:-abao-storage}
       R2_ENDPOINT: ${R2_ENDPOINT:-https://1c2133fce297f20f4ede90e3543468dd.r2.cloudflarestorage.com}
       R2_CDN_URL: ${R2_PUBLIC_URL:-https://cdn.swjip.asia}
+      SEARXNG_URL: http://searxng:8080
       SOCKS_PROXY: ${SOCKS_PROXY:-}
     depends_on:
       postgres:

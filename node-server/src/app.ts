@@ -18,8 +18,24 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 静态文件服务：头像等上传文件
-app.use('/uploads', express.static(path.resolve('storage/uploads')));
+// 静态文件服务：旧头像向后兼容
+app.use('/uploads', cors(), express.static(path.resolve('storage/uploads')));
+
+// CDN 图片代理：Flutter Web 用 XHR 加载图片需要 CORS，R2 未配置 CORS 时走此代理
+app.get('/api/v1/cdn/*', async (req, res) => {
+  const cdnUrl = process.env.R2_CDN_URL || 'https://cdn.swjip.asia';
+  const imagePath = (req.params as Record<string, string>)[0];
+  try {
+    const upstream = await fetch(`${cdnUrl}/${imagePath}`);
+    if (!upstream.ok) { res.status(upstream.status).end(); return; }
+    res.set('Content-Type', upstream.headers.get('content-type') || 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.send(buffer);
+  } catch {
+    res.status(502).end();
+  }
+});
 
 // Health (unversioned, always reachable)
 app.use('/api/health', healthRoutes);

@@ -32,28 +32,35 @@ services:
       timeout: 5s
       retries: 5
 
-  # Spring Boot Backend
+  # Node.js Backend
   server:
     build:
-      context: ./server
+      context: ./node-server
       dockerfile: Dockerfile
     container_name: abao-server
     ports:
       - "8080:8080"
+    volumes:
+      - ./doc/chat/pi/soul.md:/app/doc/chat/pi/soul.md:ro
+      - ./storage:/app/storage
     environment:
-      SPRING_PROFILES_ACTIVE: dev
-      DATABASE_URL: jdbc:postgresql://postgres:5432/abao
+      DATABASE_HOST: postgres
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: abao
       DATABASE_USERNAME: postgres
       DATABASE_PASSWORD: postgres
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ""
-      REDIS_SSL: "false"
+      REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-c0T1VX5sbYS0yuAhQQscO+lB5zYWS8uzrEn6oXmZ4Lc=}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${MAIL_FROM:-noreply@abao.app}
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET_NAME: ${R2_BUCKET:-abao-storage}
+      R2_ENDPOINT: ${R2_ENDPOINT:-https://1c2133fce297f20f4ede90e3543468dd.r2.cloudflarestorage.com}
+      R2_CDN_URL: ${R2_PUBLIC_URL:-https://cdn.swjip.asia}
+      SOCKS_PROXY: ${SOCKS_PROXY:-}
     depends_on:
       postgres:
         condition: service_healthy

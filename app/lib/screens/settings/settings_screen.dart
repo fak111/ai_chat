@@ -1,13 +1,21 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../data/changelog.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/api_service.dart';
 import '../auth/login_screen.dart';
 import 'changelog_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
@@ -25,10 +33,9 @@ class SettingsScreen extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.edit_outlined),
             title: const Text('修改昵称'),
+            subtitle: Text(user?.displayName ?? ''),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              // TODO: Navigate to edit nickname
-            },
+            onTap: () => _showEditNicknameDialog(context, user?.displayName ?? ''),
           ),
           ListTile(
             leading: const Icon(Icons.lock_outline),
@@ -117,20 +124,73 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildUserHeader(BuildContext context, user) {
+    final avatarUrl = user?.avatarUrl;
+    final String? fullAvatarUrl;
+    if (avatarUrl == null) {
+      fullAvatarUrl = null;
+    } else if (!avatarUrl.startsWith('http')) {
+      // 旧的相对路径：/uploads/avatars/...
+      fullAvatarUrl = '${ApiService.baseUrl}$avatarUrl';
+    } else if (kIsWeb) {
+      // Web 端：CDN 无 CORS，通过后端代理加载
+      final cdnPrefix = 'https://cdn.swjip.asia/';
+      fullAvatarUrl = avatarUrl.startsWith(cdnPrefix)
+          ? '${ApiService.baseUrl}/api/v1/cdn/${avatarUrl.substring(cdnPrefix.length)}'
+          : avatarUrl;
+    } else {
+      // 移动/桌面端：直接走 CDN
+      fullAvatarUrl = avatarUrl;
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 40,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Text(
-              user?.displayName.substring(0, 1).toUpperCase() ?? '?',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+          GestureDetector(
+            onTap: () {
+              final changesLeft = user?.avatarChangesLeft ?? 0;
+              if (changesLeft <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('头像修改次数已用完（最多3次）')),
+                );
+                return;
+              }
+              _pickAndUploadAvatar(context);
+            },
+            child: Stack(
+              children: [
+                CircleAvatar(
+                  radius: 40,
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  backgroundImage: fullAvatarUrl != null
+                      ? NetworkImage(fullAvatarUrl)
+                      : null,
+                  onBackgroundImageError: fullAvatarUrl != null
+                      ? (_, __) {} // 静默处理加载失败
+                      : null,
+                  child: avatarUrl == null
+                      ? Text(
+                          user?.displayName.substring(0, 1).toUpperCase() ?? '?',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        )
+                      : null,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.camera_alt, size: 14, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 16),
@@ -160,6 +220,42 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _pickAndUploadAvatar(BuildContext context) async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (image == null) return;
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('上传中...'), duration: Duration(seconds: 1)),
+      );
+
+      final bytes = await image.readAsBytes();
+      final filename = image.name.isNotEmpty ? image.name : 'avatar.jpg';
+      final success = await context.read<AuthProvider>().updateAvatar(bytes.toList(), filename);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(success ? '头像已更新' : '上传失败'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('选择图片失败: $e'), duration: const Duration(seconds: 3)),
+        );
+      }
+    }
+  }
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -170,6 +266,51 @@ class SettingsScreen extends StatelessWidget {
           fontWeight: FontWeight.w500,
           color: Colors.grey,
         ),
+      ),
+    );
+  }
+
+  void _showEditNicknameDialog(BuildContext context, String currentName) {
+    final controller = TextEditingController(text: currentName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('修改昵称'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 50,
+          decoration: const InputDecoration(
+            hintText: '输入新昵称',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newName = controller.text.trim();
+              if (newName.isEmpty || newName == currentName) {
+                Navigator.pop(ctx);
+                return;
+              }
+              Navigator.pop(ctx);
+              final success = await context.read<AuthProvider>().updateNickname(newName);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? '昵称已更新' : '修改失败'),
+                    duration: const Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+            child: const Text('确认'),
+          ),
+        ],
       ),
     );
   }

@@ -2,7 +2,6 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { authRequired } from '../middleware/auth.middleware.js';
 import {
@@ -15,6 +14,7 @@ import {
   updateProfile,
   updateAvatar,
 } from '../services/auth.service.js';
+import { storageService } from '../services/storage.service.js';
 
 export const authRoutes = Router();
 
@@ -123,17 +123,8 @@ authRoutes.put('/profile', authRequired, async (req: Request, res: Response, nex
 });
 
 // POST /api/auth/avatar
-const avatarDir = path.resolve('storage/uploads/avatars');
-fs.mkdirSync(avatarDir, { recursive: true });
-
 const avatarUpload = multer({
-  storage: multer.diskStorage({
-    destination: avatarDir,
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname) || '.jpg';
-      cb(null, `${uuidv4()}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (_req, file, cb) => {
     const allowed = /\.(jpg|jpeg|png|gif|webp)$/i;
@@ -151,7 +142,10 @@ authRoutes.post('/avatar', authRequired, avatarUpload.single('avatar'), async (r
       res.status(400).json({ code: 70002, message: '请选择图片' });
       return;
     }
-    const result = await updateAvatar(req.user!.id, req.file.filename);
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const key = `avatars/${uuidv4()}${ext}`;
+    const url = await storageService.upload(key, req.file.buffer, req.file.mimetype);
+    const result = await updateAvatar(req.user!.id, url);
     res.json(result);
   } catch (err) {
     next(err);

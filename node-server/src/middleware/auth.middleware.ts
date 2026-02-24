@@ -18,7 +18,7 @@ export function signAccessToken(user: User): string {
   return jwt.sign(
     { sub: user.id, email: user.email, type: 'access' },
     JWT_SECRET,
-    { expiresIn: '2h' },
+    { expiresIn: '30d' },
   );
 }
 

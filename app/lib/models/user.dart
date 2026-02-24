@@ -3,6 +3,7 @@ class User {
   final String email;
   final String? nickname;
   final String? avatarUrl;
+  final int avatarChangesLeft;
   final DateTime createdAt;
 
   User({
@@ -10,6 +11,7 @@ class User {
     required this.email,
     this.nickname,
     this.avatarUrl,
+    this.avatarChangesLeft = 3,
     required this.createdAt,
   });
 
@@ -19,6 +21,7 @@ class User {
       email: json['email'] as String,
       nickname: json['nickname'] as String?,
       avatarUrl: json['avatarUrl'] as String?,
+      avatarChangesLeft: (json['avatarChangesLeft'] as int?) ?? 3,
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
   }
@@ -29,6 +32,7 @@ class User {
       'email': email,
       'nickname': nickname,
       'avatarUrl': avatarUrl,
+      'avatarChangesLeft': avatarChangesLeft,
       'createdAt': createdAt.toIso8601String(),
     };
   }

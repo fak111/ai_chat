@@ -5,6 +5,7 @@ export interface User {
   password_hash: string;
   nickname: string | null;
   avatar_url: string | null;
+  avatar_change_count: number;
   email_verified: boolean;
   verification_token: string | null;
   verification_token_expires_at: Date | null;
@@ -17,6 +18,7 @@ export interface UserDto {
   email: string;
   nickname: string | null;
   avatarUrl: string | null;
+  avatarChangesLeft: number;
   createdAt: string;
 }
 
@@ -121,6 +123,10 @@ export type WsClientMessage =
 
 export type WsServerMessage =
   | { type: 'NEW_MESSAGE'; message: MessageDto }
+  | { type: 'AI_STREAM_START'; groupId: string; streamId: string; replyToId: string }
+  | { type: 'AI_STREAM_DELTA'; groupId: string; streamId: string; delta: string }
+  | { type: 'AI_STREAM_TOOL'; groupId: string; streamId: string; toolName: string; status: 'start' | 'end' }
+  | { type: 'AI_STREAM_END'; groupId: string; streamId: string; message: MessageDto }
   | { type: 'JOINED_GROUP'; groupId: string }
   | { type: 'LEFT_GROUP'; groupId: string }
   | { type: 'PONG' }

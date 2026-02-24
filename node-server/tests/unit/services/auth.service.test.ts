@@ -322,6 +322,7 @@ describe('AuthService', () => {
         email: 'test@example.com',
         nickname: 'Tester',
         avatarUrl: 'https://example.com/avatar.jpg',
+        avatarChangesLeft: 3,
         createdAt: '2025-01-01T00:00:00.000Z',
       });
     });

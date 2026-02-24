@@ -13,6 +13,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.996.0",
     "@mariozechner/jiti": "^2.6.5",
     "@mariozechner/pi-agent-core": "^0.52.12",
     "@mariozechner/pi-ai": "^0.52.12",
@@ -24,6 +25,7 @@
     "express": "^4.21.0",
     "jsonwebtoken": "^9.0.2",
     "mathjs": "^13.0.0",
+    "multer": "^2.0.2",
     "pg": "^8.13.0",
     "pino": "^8.21.0",
     "pino-pretty": "^11.3.0",
@@ -36,6 +38,7 @@
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/jsonwebtoken": "^9.0.7",
+    "@types/multer": "^2.0.0",
     "@types/node": "^20.14.0",
     "@types/pg": "^8.11.0",
     "@types/supertest": "^6.0.3",

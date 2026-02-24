@@ -65,7 +65,7 @@ class AuthProvider extends ChangeNotifier {
       final isLoggedIn = await _authService.isLoggedIn();
       if (isLoggedIn) {
         _user = await _authService.getCurrentUser();
-        _status = AuthStatus.authenticated;
+        _status = _user != null ? AuthStatus.authenticated : AuthStatus.unauthenticated;
       } else {
         _status = AuthStatus.unauthenticated;
       }
@@ -107,6 +107,30 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _status = AuthStatus.error;
+      _errorMessage = _cleanErrorMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateNickname(String nickname) async {
+    try {
+      _user = await _authService.updateNickname(nickname);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = _cleanErrorMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateAvatar(List<int> bytes, String filename) async {
+    try {
+      _user = await _authService.uploadAvatar(bytes, filename);
+      notifyListeners();
+      return true;
+    } catch (e) {
       _errorMessage = _cleanErrorMessage(e);
       notifyListeners();
       return false;

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/message.dart';
 import '../../providers/chat_provider.dart';
 import '../../utils/clipboard_utils.dart';
+import '../../widgets/streaming_message_bubble.dart';
 
 class ChatScreen extends StatefulWidget {
   final String groupId;
@@ -183,16 +184,30 @@ class _ChatScreenState extends State<ChatScreen> {
                   return _buildEmptyState();
                 }
 
+                final streaming = provider.currentStreamingMessage;
+                final itemCount =
+                    messages.length + (streaming != null ? 1 : 0);
+
                 return ListView.builder(
                   controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: messages.length,
+                  itemCount: itemCount,
                   itemBuilder: (context, index) {
-                    final message = messages[index];
+                    // Streaming bubble at position 0 (bottom of reversed list)
+                    if (streaming != null && index == 0) {
+                      return StreamingMessageBubble(streaming: streaming);
+                    }
+
+                    final msgIndex =
+                        streaming != null ? index - 1 : index;
+                    final message = messages[msgIndex];
                     final previousMessage =
-                        index < messages.length - 1 ? messages[index + 1] : null;
-                    final showDateHeader = _shouldShowDateHeader(message, previousMessage);
+                        msgIndex < messages.length - 1
+                            ? messages[msgIndex + 1]
+                            : null;
+                    final showDateHeader =
+                        _shouldShowDateHeader(message, previousMessage);
 
                     return Column(
                       children: [

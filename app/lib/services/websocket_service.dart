@@ -23,6 +23,7 @@ class WebSocketService {
 
   final Map<String, Set<MessageHandler>> _handlers = {};
   final Set<String> _joinedGroups = {};
+  void Function()? onReconnect;
 
   WebSocketService._internal() {
     _tokenManager = TokenManager();
@@ -52,6 +53,7 @@ class WebSocketService {
         onDone: _onDone,
       );
 
+      final wasReconnect = _reconnectAttempts > 0;
       _isConnected = true;
       _reconnectAttempts = 0;
       _startPingTimer();
@@ -59,6 +61,11 @@ class WebSocketService {
       // Rejoin groups
       for (final groupId in _joinedGroups) {
         _sendJoinGroup(groupId);
+      }
+
+      // Notify reconnect listeners
+      if (wasReconnect) {
+        onReconnect?.call();
       }
     } catch (e) {
       _isConnected = false;

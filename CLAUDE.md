@@ -224,7 +224,7 @@ CI/CD: GitHub Actions → SSH 到服务器 → `git clone --depth 1` + `docker b
 
 ## 产品定位参考
 
-详见 `doc/chat/product/now.md`
+详见 `doc/market/marketing-plan.md`
 
 > 体验抄 Telegram，交互抄 Discord，架构留 Matrix 口子，安全别学 Signal，平台化别学任何人。
 > A宝的护城河在于"AI 作为群成员"这个全新品类。

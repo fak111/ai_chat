@@ -55,6 +55,9 @@ vi.mock('../../../src/agent/tools/builtin/create-skill-tool.js', () => ({
 vi.mock('../../../src/agent/tools/builtin/web-search-tool.js', () => ({
   webSearchTool: { name: 'web_search', description: 'mock', execute: vi.fn() },
 }));
+vi.mock('../../../src/agent/tools/builtin/web-fetch-tool.js', () => ({
+  webFetchTool: { name: 'web_fetch', description: 'mock', execute: vi.fn() },
+}));
 
 // Mock SkillLoader
 vi.mock('../../../src/agent/tools/skill-loader.js', () => ({

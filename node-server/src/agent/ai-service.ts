@@ -17,6 +17,7 @@ import { readFileTool } from './tools/builtin/read-file-tool.js';
 import { editFileTool } from './tools/builtin/edit-file-tool.js';
 import { createSkillTool } from './tools/builtin/create-skill-tool.js';
 import { webSearchTool } from './tools/builtin/web-search-tool.js';
+import { webFetchTool } from './tools/builtin/web-fetch-tool.js';
 import { SkillLoader } from './tools/skill-loader.js';
 import crypto from 'node:crypto';
 import type { Message, MessageDto } from '../types/index.js';
@@ -73,6 +74,7 @@ function getAllTools(groupId: string, skillLoader: SkillLoader): any[] {
     readFileTool,
     editFileTool,
     webSearchTool,
+    webFetchTool,
     createRememberTool(groupId),
     createSkillTool(groupId, skillLoader),
   ];

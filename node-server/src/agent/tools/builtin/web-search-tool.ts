@@ -42,17 +42,27 @@ interface SearxngResult {
   url: string;
   content: string;
   engine: string;
+  engines?: string[];
 }
 
 /**
  * SearXNG JSON API 搜索
  * 聚合多个搜索引擎（Google, Bing, DuckDuckGo, Brave 等）
  */
-async function searxngSearch(query: string, maxResults = 5): Promise<string> {
+async function searxngSearch(query: string, timeRange?: string, maxResults = 10): Promise<string> {
   const baseUrl = process.env.SEARXNG_URL || 'http://searxng:8080';
-  const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&language=zh-CN`;
+  const authHeader: Record<string, string> = process.env.SEARXNG_AUTH
+    ? { Authorization: `Basic ${Buffer.from(process.env.SEARXNG_AUTH).toString('base64')}` }
+    : {};
+  let url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&language=zh-CN`;
+  if (timeRange) {
+    url += `&time_range=${timeRange}`;
+  }
 
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(10000),
+    headers: authHeader,
+  });
 
   if (!res.ok) {
     throw new Error(`SearXNG returned ${res.status}: ${res.statusText}`);
@@ -66,7 +76,10 @@ async function searxngSearch(query: string, maxResults = 5): Promise<string> {
   }
 
   return results
-    .map((r, i) => `${i + 1}. ${r.title}\n   ${r.content || '(无摘要)'}\n   ${r.url}`)
+    .map((r, i) => {
+      const engines = r.engines?.join(', ') || r.engine || '未知';
+      return `${i + 1}. ${r.title}\n   ${r.content || '(无摘要)'}\n   ${r.url} [来源: ${engines}]`;
+    })
     .join('\n\n');
 }
 
@@ -74,18 +87,27 @@ export const webSearchTool: AgentTool<any> = {
   name: 'web_search',
   label: '网络搜索',
   description:
-    '搜索互联网获取实时信息。适用于查询新闻、人物、事件、天气、技术问题等需要最新数据的问题。当用户询问你不确定或需要最新信息的问题时，优先使用此工具。',
+    '搜索互联网获取实时信息。适用于查询新闻、人物、事件、天气、技术问题等需要最新数据的问题。\n使用技巧：\n- 问"今天/最近"的事，设 time_range 为 day 或 week\n- 关键词要具体，如"迪丽热巴 2026年2月 最新动态"比"迪丽热巴今天"效果好\n- 返回多条结果供你综合判断，注意甄别时效性',
   parameters: Type.Object({
     query: Type.String({ description: '搜索关键词（中文或英文皆可）' }),
+    time_range: Type.Optional(
+      Type.Union([
+        Type.Literal('day'),
+        Type.Literal('week'),
+        Type.Literal('month'),
+        Type.Literal('year'),
+      ], { description: '时间范围过滤。问"今天"用 day，问"最近"用 week 或 month' })
+    ),
   }),
   execute: async (_toolCallId, args) => {
-    const { query } = args;
-    logger.info({ query }, 'web_search executing via SearXNG');
+    const { query, time_range } = args;
+    logger.info({ query, time_range }, 'web_search executing via SearXNG');
 
-    // 检查缓存
-    const cached = getCached(query);
+    // 检查缓存（cache key 包含 time_range 避免混淆）
+    const cacheKey = time_range ? `${query}__tr:${time_range}` : query;
+    const cached = getCached(cacheKey);
     if (cached) {
-      logger.info({ query }, 'web_search cache hit');
+      logger.info({ query, time_range }, 'web_search cache hit');
       return {
         content: [{ type: 'text' as const, text: cached }],
         details: undefined,
@@ -101,8 +123,8 @@ export const webSearchTool: AgentTool<any> = {
     }
 
     try {
-      const result = await searxngSearch(query);
-      setCache(query, result);
+      const result = await searxngSearch(query, time_range);
+      setCache(cacheKey, result);
 
       return {
         content: [{ type: 'text' as const, text: result }],

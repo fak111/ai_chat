@@ -62,7 +62,8 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${MAIL_FROM}
       APP_BASE_URL: ${APP_BASE_URL}
-      SEARXNG_URL: http://searxng:8080
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
+      SEARXNG_AUTH: ${SEARXNG_AUTH:-}
     depends_on:
       postgres:
         condition: service_healthy

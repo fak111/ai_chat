@@ -10,6 +10,9 @@ FROM node:20-slim
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --production
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip curl git \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/dist/ ./dist/
 COPY storage/ ./storage/
 

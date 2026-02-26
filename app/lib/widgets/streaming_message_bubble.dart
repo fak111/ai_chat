@@ -128,7 +128,7 @@ class _StreamingMessageBubbleState extends State<StreamingMessageBubble>
       mainAxisSize: MainAxisSize.min,
       children: [
         Flexible(
-          child: Text(content, style: const TextStyle(fontSize: 15)),
+          child: SelectableText(content, style: const TextStyle(fontSize: 15)),
         ),
         FadeTransition(
           opacity: _cursorController,

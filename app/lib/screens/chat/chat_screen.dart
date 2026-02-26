@@ -310,111 +310,108 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
 
-    return GestureDetector(
-      onLongPress: () => _showMessageOptions(message),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: isAI
-                  ? Theme.of(context).colorScheme.secondary
-                  : Theme.of(context).colorScheme.primaryContainer,
-              child: isAI
-                  ? const Icon(Icons.smart_toy, size: 20, color: Colors.white)
-                  : Text(
-                      (message.senderNickname ?? '?')[0].toUpperCase(),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: isAI
+                ? Theme.of(context).colorScheme.secondary
+                : Theme.of(context).colorScheme.primaryContainer,
+            child: isAI
+                ? const Icon(Icons.smart_toy, size: 20, color: Colors.white)
+                : Text(
+                    (message.senderNickname ?? '?')[0].toUpperCase(),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 8),
+          // Message content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Sender name and time
+                Row(
+                  children: [
+                    Text(
+                      isAI ? 'AI' : (message.senderNickname ?? 'Unknown'),
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: isAI
+                            ? Theme.of(context).colorScheme.secondary
+                            : Colors.grey.shade700,
                       ),
                     ),
-            ),
-            const SizedBox(width: 8),
-            // Message content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sender name and time
-                  Row(
-                    children: [
-                      Text(
-                        isAI ? 'AI' : (message.senderNickname ?? 'Unknown'),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: isAI
-                              ? Theme.of(context).colorScheme.secondary
-                              : Colors.grey.shade700,
-                        ),
+                    const SizedBox(width: 8),
+                    Text(
+                      DateFormat('HH:mm').format(message.createdAt),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade400,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        DateFormat('HH:mm').format(message.createdAt),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade400,
-                        ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Reply preview
+                if (message.replyToContent != null) _buildReplyPreview(message),
+                // Message bubble with optional quote button
+                Stack(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.only(
+                        left: 12, right: isAI ? 28 : 12,
+                        top: 8, bottom: 8,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // Reply preview
-                  if (message.replyToContent != null) _buildReplyPreview(message),
-                  // Message bubble with optional quote button
-                  Stack(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.only(
-                          left: 12, right: isAI ? 28 : 12,
-                          top: 8, bottom: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isAI
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          message.content,
-                          style: const TextStyle(fontSize: 15),
-                        ),
+                      decoration: BoxDecoration(
+                        color: isAI
+                            ? Theme.of(context).colorScheme.secondaryContainer
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      // Quote button for AI messages
-                      if (isAI)
-                        Positioned(
-                          right: 4,
-                          bottom: 4,
-                          child: GestureDetector(
-                            onTap: () {
-                              context.read<ChatProvider>().setReplyingTo(message);
-                              _focusNode.requestFocus();
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Icon(
-                                Icons.format_quote,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.secondary.withOpacity(0.5),
-                              ),
+                      child: SelectableText(
+                        message.content,
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                    ),
+                    // Quote button for AI messages
+                    if (isAI)
+                      Positioned(
+                        right: 4,
+                        bottom: 4,
+                        child: GestureDetector(
+                          onTap: () {
+                            context.read<ChatProvider>().setReplyingTo(message);
+                            _focusNode.requestFocus();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Icon(
+                              Icons.format_quote,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.secondary.withOpacity(0.5),
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ],
-              ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -439,49 +436,6 @@ class _ChatScreenState extends State<ChatScreen> {
         style: TextStyle(
           fontSize: 12,
           color: Colors.grey.shade600,
-        ),
-      ),
-    );
-  }
-
-  void _showMessageOptions(Message message) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.reply),
-              title: const Text('回复'),
-              onTap: () {
-                Navigator.pop(context);
-                context.read<ChatProvider>().setReplyingTo(message);
-                _focusNode.requestFocus();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('复制'),
-              onTap: () async {
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                Navigator.pop(context);
-                final result = await copyToClipboard(message.content);
-                if (result.success) {
-                  scaffoldMessenger.showSnackBar(
-                    const SnackBar(content: Text('消息已复制')),
-                  );
-                } else {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(result.errorMessage ?? '复制失败'),
-                      backgroundColor: Colors.red.shade400,
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
         ),
       ),
     );
